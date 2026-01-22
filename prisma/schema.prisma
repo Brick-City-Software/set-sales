@@ -32,3 +32,30 @@ model Session {
   refreshToken        String?
   refreshTokenExpires DateTime?
 }
+
+model Sale {
+  id            String        @id @default(uuid())
+  shop          String
+  name          String
+  discountType  String        // "percentage" | "fixed_amount" | "fixed_price"
+  discountValue Float
+  status        String        @default("active") // "active" | "ended"
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  variants      SaleVariant[]
+
+  @@index([shop])
+}
+
+model SaleVariant {
+  id            String @id @default(uuid())
+  saleId        String
+  variantId     String // Shopify variant GID
+  productId     String // Shopify product GID
+  originalPrice String // Store original price to restore later
+  salePrice     String
+  sale          Sale   @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  @@unique([saleId, variantId])
+  @@index([variantId])
+}
