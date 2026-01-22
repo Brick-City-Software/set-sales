@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Set Sales is a Shopify embedded app built with React Router v7 and TypeScript. It uses the official Shopify React Router app template with Prisma for session storage.
+Set Sales is a Shopify embedded app that allows merchants to easily put products on sale by modifying the price and compare-at price fields. Built with React Router v7 and TypeScript, using Prisma for data storage.
 
 ## Commands
 
@@ -38,8 +38,9 @@ npm run deploy           # Deploy to Shopify
 
 Routes are defined in `app/routes/` using React Router's file-based routing convention:
 - `app.tsx` - App shell layout (authenticated routes)
-- `app._index.tsx` - Dashboard at `/app`
-- `app.additional.tsx` - Page at `/app/additional`
+- `app.sales._index.tsx` - Sales dashboard at `/app/sales`
+- `app.sales.new.tsx` - Create new sale at `/app/sales/new`
+- `app.sales.$saleId.tsx` - Sale detail page at `/app/sales/:saleId`
 - `auth.$.tsx` - Catch-all auth routes at `/auth/*`
 - `webhooks.app.uninstalled.tsx` - Webhook handler for `app/uninstalled` topic
 - `_index/route.tsx` - Public landing page at `/`
@@ -58,7 +59,10 @@ Files ending in `.server.ts` or `.server.tsx` are Node-only and not bundled into
 
 **UI Components**: Uses Polaris web components (native HTML custom elements like `<s-page>`, `<s-button>`), not React Polaris.
 
-**Session Storage**: Prisma-based session storage in SQLite (`prisma/dev.sqlite`). Session model stores Shopify OAuth tokens and shop data.
+**Database**: Prisma with SQLite (`prisma/dev.sqlite`). Models include:
+- `Session` - Shopify OAuth tokens and shop data
+- `Sale` - Sale metadata (name, discount type/value, status)
+- `SaleVariant` - Original and sale prices for each variant in a sale
 
 ### Webhook Handling
 
