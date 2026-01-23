@@ -9,6 +9,7 @@ import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import db from "../db.server";
+import { formatDiscountType } from "../utils/pricing";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -90,19 +91,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   return { error: "Unknown action" };
 };
-
-function formatDiscountType(type: string, value: number): string {
-  switch (type) {
-    case "percentage":
-      return `${value}% off`;
-    case "fixed_amount":
-      return `$${value.toFixed(2)} off`;
-    case "fixed_price":
-      return `$${value.toFixed(2)}`;
-    default:
-      return String(value);
-  }
-}
 
 export default function SalesIndex() {
   const { sales } = useLoaderData<typeof loader>();
