@@ -57,8 +57,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     // Restore original prices for each product
+    const errors: string[] = [];
     for (const [productId, variants] of variantsByProduct) {
-      await admin.graphql(
+      const response = await admin.graphql(
         `#graphql
         mutation RestoreOriginalPrices($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
           productVariantsBulkUpdate(productId: $productId, variants: $variants) {
@@ -77,9 +78,20 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           variables: { productId, variants },
         },
       );
+
+      const result = await response.json();
+      const userErrors =
+        result.data?.productVariantsBulkUpdate?.userErrors || [];
+      if (userErrors.length > 0) {
+        errors.push(...userErrors.map((e: { message: string }) => e.message));
+      }
     }
 
-    // Update sale status
+    if (errors.length > 0) {
+      return { error: `Failed to restore prices: ${errors.join(", ")}` };
+    }
+
+    // Update sale status only if all price restorations succeeded
     await db.sale.update({
       where: { id: saleId },
       data: { status: "ended" },
