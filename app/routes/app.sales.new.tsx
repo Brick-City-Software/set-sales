@@ -9,6 +9,7 @@ import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import db from "../db.server";
+import { LIMITS } from "../constants/limits";
 
 interface ProductVariant {
   id: string;
@@ -116,6 +117,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   if (selectedVariants.length === 0) {
     return { error: "No variants selected" };
+  }
+
+  // Validate variant limit
+  if (selectedVariants.length > LIMITS.MAX_VARIANTS_PER_SALE) {
+    return {
+      error: `Maximum ${LIMITS.MAX_VARIANTS_PER_SALE} variants allowed per sale. You selected ${selectedVariants.length} variants.`,
+    };
   }
 
   // Calculate sale prices
@@ -339,6 +347,10 @@ export default function NewSale() {
 
   const discountValueNum = parseFloat(discountValue) || 0;
 
+  const isApproachingLimit =
+    selectedVariants.size > LIMITS.MAX_VARIANTS_PER_SALE * 0.8;
+  const isOverLimit = selectedVariants.size > LIMITS.MAX_VARIANTS_PER_SALE;
+
   return (
     <s-page heading="Create Sale">
       <s-button
@@ -346,9 +358,18 @@ export default function NewSale() {
         variant="primary"
         onClick={handleSubmit}
         {...(isSubmitting ? { loading: true } : {})}
+        {...(isOverLimit ? { disabled: true } : {})}
       >
         Create Sale ({selectedVariants.size} variants)
       </s-button>
+
+      {isApproachingLimit && (
+        <s-banner tone={isOverLimit ? "critical" : "warning"}>
+          {isOverLimit
+            ? `You've selected ${selectedVariants.size} variants. Maximum is ${LIMITS.MAX_VARIANTS_PER_SALE}.`
+            : `You've selected ${selectedVariants.size} variants. Maximum is ${LIMITS.MAX_VARIANTS_PER_SALE}.`}
+        </s-banner>
+      )}
 
       <s-section heading="Sale Details">
         <s-stack direction="block" gap="base">
