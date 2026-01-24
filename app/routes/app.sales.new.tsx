@@ -104,8 +104,41 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const discountValue = parseFloat(formData.get("discountValue") as string);
   const selectedVariantsJson = formData.get("selectedVariants") as string;
 
+  // Validate required fields
   if (!name || !discountType || isNaN(discountValue) || !selectedVariantsJson) {
     return { error: "Missing required fields" };
+  }
+
+  // Validate name length
+  if (name.trim().length === 0) {
+    return { error: "Sale name cannot be empty" };
+  }
+
+  if (name.length > 255) {
+    return { error: "Sale name must be 255 characters or less" };
+  }
+
+  // Validate discount type
+  const validDiscountTypes = ["percentage", "fixed_amount", "fixed_price"];
+  if (!validDiscountTypes.includes(discountType)) {
+    return { error: "Invalid discount type" };
+  }
+
+  // Validate discount value based on type
+  if (discountType === "percentage") {
+    if (discountValue < 0 || discountValue > 100) {
+      return { error: "Percentage discount must be between 0 and 100" };
+    }
+  } else if (discountType === "fixed_amount" || discountType === "fixed_price") {
+    if (discountValue < 0) {
+      return { error: "Discount amount must be positive" };
+    }
+    if (discountValue > 1000000) {
+      return { error: "Discount amount exceeds maximum allowed value" };
+    }
+    if (discountType === "fixed_price" && discountValue < 0.01) {
+      return { error: "Fixed price must be at least $0.01" };
+    }
   }
 
   const selectedVariants = JSON.parse(selectedVariantsJson) as Array<{
