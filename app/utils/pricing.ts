@@ -1,5 +1,10 @@
 /**
  * Calculate the sale price based on discount type and value
+ * Calculates the sale price based on discount type and value.
+ * @param originalPrice - The original price of the item
+ * @param discountType - Type of discount: "percentage", "fixed_amount", or "fixed_price"
+ * @param discountValue - The discount value (percentage, dollar amount, or fixed price)
+ * @returns The calculated sale price
  */
 export function calculateSalePrice(
   originalPrice: number,
@@ -20,6 +25,10 @@ export function calculateSalePrice(
 
 /**
  * Format discount type and value for display
+ * Formats a discount type and value into a human-readable string.
+ * @param type - Type of discount: "percentage", "fixed_amount", or "fixed_price"
+ * @param value - The discount value
+ * @returns A formatted string representation of the discount
  */
 export function formatDiscountType(type: string, value: number): string {
   switch (type) {
