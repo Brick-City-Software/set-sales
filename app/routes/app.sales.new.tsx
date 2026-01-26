@@ -9,36 +9,11 @@ import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import db from "../db.server";
-
-interface ProductVariant {
-  id: string;
-  title: string;
-  price: string;
-  compareAtPrice: string | null;
-}
-
-interface Product {
-  id: string;
-  title: string;
-  featuredImage: { url: string } | null;
-  variants: {
-    edges: Array<{
-      node: ProductVariant;
-    }>;
-  };
-}
-
-interface ProductsResponse {
-  products: {
-    pageInfo: {
-      hasNextPage: boolean;
-      endCursor: string | null;
-    };
-    edges: Array<{
-      node: Product;
-    }>;
-  };
-}
+import type {
+  ShopifyProduct,
+  ShopifyVariant,
+  ProductsResponse,
+} from "../types/shopify";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin } = await authenticate.admin(request);
@@ -277,7 +252,7 @@ export default function NewSale() {
     });
   };
 
-  const toggleProduct = (product: Product) => {
+  const toggleProduct = (product: ShopifyProduct) => {
     const variants = product.variants.edges
       .map((e) => e.node)
       .filter((v) => !v.compareAtPrice); // Exclude variants already on sale
