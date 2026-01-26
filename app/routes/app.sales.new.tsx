@@ -4,7 +4,7 @@ import type {
   HeadersFunction,
   LoaderFunctionArgs,
 } from "react-router";
-import { useLoaderData, useFetcher, useNavigate } from "react-router";
+import { useLoaderData, useFetcher, useNavigate, useNavigation } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
@@ -239,6 +239,7 @@ export default function NewSale() {
   const { products, pageInfo, search } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
   const navigate = useNavigate();
+  const navigation = useNavigation();
   const shopify = useAppBridge();
 
   const [name, setName] = useState("");
@@ -250,6 +251,7 @@ export default function NewSale() {
   const [searchInput, setSearchInput] = useState(search);
 
   const isSubmitting = fetcher.state !== "idle";
+  const isLoading = navigation.state === "loading";
 
   useEffect(() => {
     if (fetcher.data?.success) {
@@ -433,10 +435,17 @@ export default function NewSale() {
               }}
               placeholder="Search by title..."
             />
-            <s-button onClick={handleSearch}>Search</s-button>
+            <s-button onClick={handleSearch} {...(isLoading ? { loading: true } : {})}>
+              Search
+            </s-button>
           </s-stack>
 
-          {products.length === 0 ? (
+          {isLoading ? (
+            <s-stack direction="block" gap="base" style={{ padding: "32px", alignItems: "center" }}>
+              <s-spinner size="large" />
+              <s-paragraph>Loading products...</s-paragraph>
+            </s-stack>
+          ) : products.length === 0 ? (
             <s-paragraph>No products found.</s-paragraph>
           ) : (
             <s-box>
@@ -533,7 +542,11 @@ export default function NewSale() {
           )}
 
           {pageInfo.hasNextPage && (
-            <s-button variant="tertiary" onClick={handleLoadMore}>
+            <s-button
+              variant="tertiary"
+              onClick={handleLoadMore}
+              {...(isLoading ? { loading: true } : {})}
+            >
               Load more products
             </s-button>
           )}
