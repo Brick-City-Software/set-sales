@@ -51,6 +51,14 @@ Files ending in `.server.ts` or `.server.tsx` are Node-only and not bundled into
 - `app/shopify.server.ts` - Shopify app configuration and authentication
 - `app/db.server.ts` - Prisma client singleton
 
+### Shared Utilities and Constants
+
+The app follows a modular structure with shared code:
+- `app/utils/pricing.ts` - Pricing calculation and formatting utilities
+- `app/constants/limits.ts` - Business logic limits (e.g., max variants per sale: 500)
+- `app/constants/pagination.ts` - API pagination constants
+- `app/types/shopify.ts` - Shared TypeScript types for Shopify data structures
+
 ### Key Integrations
 
 **Authentication**: All `/app/*` routes require authentication via `authenticate.admin(request)` from `shopify.server.ts`. Use `redirect` from `authenticate.admin`, not from `react-router`.
@@ -59,10 +67,15 @@ Files ending in `.server.ts` or `.server.tsx` are Node-only and not bundled into
 
 **UI Components**: Uses Polaris web components (native HTML custom elements like `<s-page>`, `<s-button>`), not React Polaris.
 
-**Database**: Prisma with SQLite (`prisma/dev.sqlite`). Models include:
+**Database**: Prisma with SQLite (`prisma/dev.sqlite`) for development. Models include:
 - `Session` - Shopify OAuth tokens and shop data
-- `Sale` - Sale metadata (name, discount type/value, status)
+- `Sale` - Sale metadata (name, discount type/value, status: "pending"|"active"|"ended")
+  - Indexes: `[shop]`, `[shop, status]`, `[shop, createdAt]`
 - `SaleVariant` - Original and sale prices for each variant in a sale
+  - Indexes: `[variantId]`, `[productId]`
+  - Unique constraint: `[saleId, variantId]`
+
+**Note**: SQLite is for development only. Production should use PostgreSQL or MySQL.
 
 ### Webhook Handling
 
