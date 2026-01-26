@@ -9,6 +9,11 @@ import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import db from "../db.server";
+import type {
+  ShopifyProduct,
+  ShopifyVariant,
+  ProductsResponse,
+} from "../types/shopify";
 import { PAGINATION } from "../constants/pagination";
 import { calculateSalePrice } from "../utils/pricing";
 
@@ -283,7 +288,7 @@ export default function NewSale() {
     });
   };
 
-  const toggleProduct = (product: Product) => {
+  const toggleProduct = (product: ShopifyProduct) => {
     const variants = product.variants.edges
       .map((e) => e.node)
       .filter((v) => !v.compareAtPrice); // Exclude variants already on sale
