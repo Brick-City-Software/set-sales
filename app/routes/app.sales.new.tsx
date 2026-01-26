@@ -4,12 +4,13 @@ import type {
   HeadersFunction,
   LoaderFunctionArgs,
 } from "react-router";
-import { useLoaderData, useFetcher, useNavigate } from "react-router";
+import { useLoaderData, useFetcher, useNavigate, useNavigation } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import db from "../db.server";
 import { PAGINATION } from "../constants/pagination";
+import { calculateSalePrice } from "../utils/pricing";
 
 interface ProductVariant {
   id: string;
@@ -109,14 +110,33 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return { error: "Missing required fields" };
   }
 
-  const selectedVariants = JSON.parse(selectedVariantsJson) as Array<{
+  // Parse and validate selected variants JSON
+  let selectedVariants: Array<{
     variantId: string;
     productId: string;
     originalPrice: string;
   }>;
 
+  try {
+    selectedVariants = JSON.parse(selectedVariantsJson);
+  } catch (error) {
+    return { error: "Invalid variant data format" };
+  }
+
+  // Validate structure
+  if (!Array.isArray(selectedVariants)) {
+    return { error: "Invalid variant data format" };
+  }
+
   if (selectedVariants.length === 0) {
     return { error: "No variants selected" };
+  }
+
+  // Validate each variant has required fields
+  for (const variant of selectedVariants) {
+    if (!variant.variantId || !variant.productId || !variant.originalPrice) {
+      return { error: "Invalid variant data structure" };
+    }
   }
 
   // Calculate sale prices
@@ -216,27 +236,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   return { success: true, saleId: sale.id };
 };
 
-function calculateSalePrice(
-  originalPrice: number,
-  discountType: string,
-  discountValue: number,
-): number {
-  switch (discountType) {
-    case "percentage":
-      return originalPrice * (1 - discountValue / 100);
-    case "fixed_amount":
-      return Math.max(0.01, originalPrice - discountValue);
-    case "fixed_price":
-      return discountValue;
-    default:
-      return originalPrice;
-  }
-}
-
 export default function NewSale() {
   const { products, pageInfo, search } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
   const navigate = useNavigate();
+  const navigation = useNavigation();
   const shopify = useAppBridge();
 
   const [name, setName] = useState("");
@@ -248,6 +252,7 @@ export default function NewSale() {
   const [searchInput, setSearchInput] = useState(search);
 
   const isSubmitting = fetcher.state !== "idle";
+  const isLoading = navigation.state === "loading";
 
   useEffect(() => {
     if (fetcher.data?.success) {
@@ -431,10 +436,17 @@ export default function NewSale() {
               }}
               placeholder="Search by title..."
             />
-            <s-button onClick={handleSearch}>Search</s-button>
+            <s-button onClick={handleSearch} {...(isLoading ? { loading: true } : {})}>
+              Search
+            </s-button>
           </s-stack>
 
-          {products.length === 0 ? (
+          {isLoading ? (
+            <s-stack direction="block" gap="base" style={{ padding: "32px", alignItems: "center" }}>
+              <s-spinner size="large" />
+              <s-paragraph>Loading products...</s-paragraph>
+            </s-stack>
+          ) : products.length === 0 ? (
             <s-paragraph>No products found.</s-paragraph>
           ) : (
             <s-box>
@@ -531,7 +543,11 @@ export default function NewSale() {
           )}
 
           {pageInfo.hasNextPage && (
-            <s-button variant="tertiary" onClick={handleLoadMore}>
+            <s-button
+              variant="tertiary"
+              onClick={handleLoadMore}
+              {...(isLoading ? { loading: true } : {})}
+            >
               Load more products
             </s-button>
           )}
