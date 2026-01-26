@@ -118,6 +118,42 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return { error: "No variants selected" };
   }
 
+  // Check for variants already in active sales (race condition prevention)
+  const variantIds = selectedVariants.map((v) => v.variantId);
+  const existingVariants = await db.saleVariant.findMany({
+    where: {
+      variantId: { in: variantIds },
+      sale: {
+        status: "active",
+        shop: session.shop,
+      },
+    },
+    include: {
+      sale: {
+        select: { id: true, name: true },
+      },
+    },
+  });
+
+  if (existingVariants.length > 0) {
+    // Get unique variant IDs that are conflicting
+    const conflictingVariantIds = new Set(
+      existingVariants.map((v) => v.variantId),
+    );
+    const conflictCount = conflictingVariantIds.size;
+
+    // Get sale names for context
+    const saleNames = [
+      ...new Set(existingVariants.map((v) => v.sale.name)),
+    ].slice(0, 3);
+    const saleNamesList = saleNames.join(", ");
+    const moreSales = existingVariants.length > saleNames.length;
+
+    return {
+      error: `${conflictCount} variant${conflictCount > 1 ? "s are" : " is"} already in active sale${moreSales ? "s" : ""}: ${saleNamesList}${moreSales ? "..." : ""}`,
+    };
+  }
+
   // Calculate sale prices
   const variantsWithSalePrice = selectedVariants.map((v) => {
     const originalPrice = parseFloat(v.originalPrice);
