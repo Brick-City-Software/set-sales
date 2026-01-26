@@ -9,6 +9,7 @@ import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import db from "../db.server";
+import { calculateSalePrice } from "../utils/pricing";
 
 interface ProductVariant {
   id: string;
@@ -214,23 +215,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   return { success: true, saleId: sale.id };
 };
-
-function calculateSalePrice(
-  originalPrice: number,
-  discountType: string,
-  discountValue: number,
-): number {
-  switch (discountType) {
-    case "percentage":
-      return originalPrice * (1 - discountValue / 100);
-    case "fixed_amount":
-      return Math.max(0.01, originalPrice - discountValue);
-    case "fixed_price":
-      return discountValue;
-    default:
-      return originalPrice;
-  }
-}
 
 export default function NewSale() {
   const { products, pageInfo, search } = useLoaderData<typeof loader>();
