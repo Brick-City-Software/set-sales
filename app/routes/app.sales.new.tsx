@@ -108,14 +108,33 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return { error: "Missing required fields" };
   }
 
-  const selectedVariants = JSON.parse(selectedVariantsJson) as Array<{
+  // Parse and validate selected variants JSON
+  let selectedVariants: Array<{
     variantId: string;
     productId: string;
     originalPrice: string;
   }>;
 
+  try {
+    selectedVariants = JSON.parse(selectedVariantsJson);
+  } catch (error) {
+    return { error: "Invalid variant data format" };
+  }
+
+  // Validate structure
+  if (!Array.isArray(selectedVariants)) {
+    return { error: "Invalid variant data format" };
+  }
+
   if (selectedVariants.length === 0) {
     return { error: "No variants selected" };
+  }
+
+  // Validate each variant has required fields
+  for (const variant of selectedVariants) {
+    if (!variant.variantId || !variant.productId || !variant.originalPrice) {
+      return { error: "Invalid variant data structure" };
+    }
   }
 
   // Calculate sale prices
