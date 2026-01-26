@@ -185,7 +185,27 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     variantsByProduct.set(v.productId, existing);
   }
 
-  // Apply sale prices via GraphQL
+  // Step 1: Save sale to database with "pending" status
+  // This ensures we have a record even if Shopify API fails
+  const sale = await db.sale.create({
+    data: {
+      shop: session.shop,
+      name,
+      discountType,
+      discountValue,
+      status: "pending",
+      variants: {
+        create: variantsWithSalePrice.map((v) => ({
+          variantId: v.variantId,
+          productId: v.productId,
+          originalPrice: v.originalPrice,
+          salePrice: v.salePrice,
+        })),
+      },
+    },
+  });
+
+  // Step 2: Apply sale prices via GraphQL
   const errors: string[] = [];
   for (const [productId, variants] of variantsByProduct) {
     const response = await admin.graphql(
@@ -215,27 +235,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
   }
 
+  // Step 3: Handle success or failure
   if (errors.length > 0) {
+    // Rollback: Delete the sale from database since Shopify update failed
+    await db.sale.delete({ where: { id: sale.id } });
     return { error: `Failed to apply sale: ${errors.join(", ")}` };
   }
 
-  // Save sale to database
-  const sale = await db.sale.create({
-    data: {
-      shop: session.shop,
-      name,
-      discountType,
-      discountValue,
-      status: "active",
-      variants: {
-        create: variantsWithSalePrice.map((v) => ({
-          variantId: v.variantId,
-          productId: v.productId,
-          originalPrice: v.originalPrice,
-          salePrice: v.salePrice,
-        })),
-      },
-    },
+  // Step 4: Mark sale as active after successful price application
+  await db.sale.update({
+    where: { id: sale.id },
+    data: { status: "active" },
   });
 
   return { success: true, saleId: sale.id };
