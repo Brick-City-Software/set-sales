@@ -45,6 +45,8 @@ model Sale {
   variants      SaleVariant[]
 
   @@index([shop])
+  @@index([shop, status])
+  @@index([shop, createdAt])
 }
 
 model SaleVariant {
@@ -58,4 +60,5 @@ model SaleVariant {
 
   @@unique([saleId, variantId])
   @@index([variantId])
+  @@index([productId])
 }
