@@ -9,6 +9,7 @@ import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import db from "../db.server";
+import { PAGINATION } from "../constants/pagination";
 import { calculateSalePrice } from "../utils/pricing";
 
 interface ProductVariant {
@@ -64,7 +65,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             featuredImage {
               url
             }
-            variants(first: 100) {
+            variants(first: ${PAGINATION.VARIANTS_PER_PRODUCT}) {
               edges {
                 node {
                   id
@@ -80,7 +81,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }`,
     {
       variables: {
-        first: 25,
+        first: PAGINATION.PRODUCTS_PER_PAGE,
         after: cursor,
         query: query || null,
       },
