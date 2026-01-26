@@ -1,4 +1,5 @@
 /**
+ * Calculate the sale price based on discount type and value
  * Calculates the sale price based on discount type and value.
  * @param originalPrice - The original price of the item
  * @param discountType - Type of discount: "percentage", "fixed_amount", or "fixed_price"
@@ -23,6 +24,7 @@ export function calculateSalePrice(
 }
 
 /**
+ * Format discount type and value for display
  * Formats a discount type and value into a human-readable string.
  * @param type - Type of discount: "percentage", "fixed_amount", or "fixed_price"
  * @param value - The discount value

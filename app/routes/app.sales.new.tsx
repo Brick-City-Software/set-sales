@@ -215,21 +215,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   // Calculate sale prices
   const variantsWithSalePrice = selectedVariants.map((v) => {
     const originalPrice = parseFloat(v.originalPrice);
-    let salePrice: number;
-
-    switch (discountType) {
-      case "percentage":
-        salePrice = originalPrice * (1 - discountValue / 100);
-        break;
-      case "fixed_amount":
-        salePrice = Math.max(0.01, originalPrice - discountValue);
-        break;
-      case "fixed_price":
-        salePrice = discountValue;
-        break;
-      default:
-        salePrice = originalPrice;
-    }
+    const salePrice = calculateSalePrice(
+      originalPrice,
+      discountType,
+      discountValue,
+    );
 
     return {
       ...v,
