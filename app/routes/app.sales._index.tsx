@@ -109,6 +109,7 @@ export default function SalesIndex() {
   const fetcher = useFetcher<typeof action>();
   const shopify = useAppBridge();
 
+  // Filter out pending sales (temporary state during creation)
   const activeSales = sales.filter((s) => s.status === "active");
   const endedSales = sales.filter((s) => s.status === "ended");
 
