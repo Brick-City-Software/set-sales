@@ -112,10 +112,44 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const discountValue = parseFloat(formData.get("discountValue") as string);
   const selectedVariantsJson = formData.get("selectedVariants") as string;
 
+  // Validate required fields
   if (!name || !discountType || isNaN(discountValue) || !selectedVariantsJson) {
     return { error: "Missing required fields" };
   }
 
+  // Validate name length
+  if (name.trim().length === 0) {
+    return { error: "Sale name cannot be empty" };
+  }
+
+  if (name.length > 255) {
+    return { error: "Sale name must be 255 characters or less" };
+  }
+
+  // Validate discount type
+  const validDiscountTypes = ["percentage", "fixed_amount", "fixed_price"];
+  if (!validDiscountTypes.includes(discountType)) {
+    return { error: "Invalid discount type" };
+  }
+
+  // Validate discount value based on type
+  if (discountType === "percentage") {
+    if (discountValue < 0 || discountValue > 100) {
+      return { error: "Percentage discount must be between 0 and 100" };
+    }
+  } else if (discountType === "fixed_amount" || discountType === "fixed_price") {
+    if (discountValue < 0) {
+      return { error: "Discount amount must be positive" };
+    }
+    if (discountValue > 1000000) {
+      return { error: "Discount amount exceeds maximum allowed value" };
+    }
+    if (discountType === "fixed_price" && discountValue < 0.01) {
+      return { error: "Fixed price must be at least $0.01" };
+    }
+  }
+
+  const selectedVariants = JSON.parse(selectedVariantsJson) as Array<{
   // Parse and validate selected variants JSON
   let selectedVariants: Array<{
     variantId: string;
@@ -142,6 +176,39 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (selectedVariants.length > LIMITS.MAX_VARIANTS_PER_SALE) {
     return {
       error: `Maximum ${LIMITS.MAX_VARIANTS_PER_SALE} variants allowed per sale. You selected ${selectedVariants.length} variants.`,
+  // Check for variants already in active sales (race condition prevention)
+  const variantIds = selectedVariants.map((v) => v.variantId);
+  const existingVariants = await db.saleVariant.findMany({
+    where: {
+      variantId: { in: variantIds },
+      sale: {
+        status: "active",
+        shop: session.shop,
+      },
+    },
+    include: {
+      sale: {
+        select: { id: true, name: true },
+      },
+    },
+  });
+
+  if (existingVariants.length > 0) {
+    // Get unique variant IDs that are conflicting
+    const conflictingVariantIds = new Set(
+      existingVariants.map((v) => v.variantId),
+    );
+    const conflictCount = conflictingVariantIds.size;
+
+    // Get sale names for context
+    const saleNames = [
+      ...new Set(existingVariants.map((v) => v.sale.name)),
+    ].slice(0, 3);
+    const saleNamesList = saleNames.join(", ");
+    const moreSales = existingVariants.length > saleNames.length;
+
+    return {
+      error: `${conflictCount} variant${conflictCount > 1 ? "s are" : " is"} already in active sale${moreSales ? "s" : ""}: ${saleNamesList}${moreSales ? "..." : ""}`,
     };
   // Validate each variant has required fields
   for (const variant of selectedVariants) {
@@ -153,21 +220,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   // Calculate sale prices
   const variantsWithSalePrice = selectedVariants.map((v) => {
     const originalPrice = parseFloat(v.originalPrice);
-    let salePrice: number;
-
-    switch (discountType) {
-      case "percentage":
-        salePrice = originalPrice * (1 - discountValue / 100);
-        break;
-      case "fixed_amount":
-        salePrice = Math.max(0.01, originalPrice - discountValue);
-        break;
-      case "fixed_price":
-        salePrice = discountValue;
-        break;
-      default:
-        salePrice = originalPrice;
-    }
+    const salePrice = calculateSalePrice(
+      originalPrice,
+      discountType,
+      discountValue,
+    );
 
     return {
       ...v,
