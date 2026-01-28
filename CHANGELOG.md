@@ -1,3 +1,38 @@
+# Set Sales Changelog
+
+## Unreleased
+
+### Added
+- Comprehensive error handling for price restoration operations (#1)
+- JSON parsing validation with proper error handling (#2)
+- Shared pricing utilities (`app/utils/pricing.ts`) to eliminate code duplication (#3, #13)
+- Input validation for sale names, discount types, and discount values (#4)
+- Variant limit enforcement (500 variants per sale) with UI feedback (#5)
+- Database indexes for query optimization on `Sale` and `SaleVariant` models (#6)
+- Race condition prevention to avoid duplicate variant assignments (#7)
+- Transaction-like behavior with database-first approach and rollback on failure (#9)
+- Shared TypeScript types for Shopify data structures (#10)
+- Pagination constants for consistent API query limits (#11)
+- Loading states during pagination and search operations (#12)
+
+### Changed
+- Extracted `calculateSalePrice()` and `formatDiscountType()` into shared utility module
+- Updated all route files to use shared pricing utilities
+- Database schema now includes "pending" status for sales
+- Sale creation now uses database-first approach with automatic rollback on Shopify API errors
+- Improved error messages with specific details about validation failures
+
+### Fixed
+- Missing error handling in price restoration that could leave sales in inconsistent state
+- Unvalidated JSON parsing that could crash the application
+- Race conditions allowing variants to be in multiple active sales simultaneously
+- Missing loading indicators during page transitions
+
+### Performance
+- Added compound indexes on frequently queried fields
+- Optimized database queries with proper index coverage
+- Reduced code duplication (~80+ lines removed across multiple files)
+
 # @shopify/shopify-app-template-react-router
 
 ## 2026.01.08
