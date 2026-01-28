@@ -8,8 +8,17 @@ import { authenticate } from "../shopify.server";
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   await authenticate.admin(request);
 
-  // eslint-disable-next-line no-undef
-  return { apiKey: process.env.SHOPIFY_API_KEY || "" };
+  // Validate API key is configured (Issue #38)
+  const apiKey = process.env.SHOPIFY_API_KEY;
+  if (!apiKey) {
+    throw new Error(
+      "SHOPIFY_API_KEY not configured. Check your environment variables."
+    );
+  }
+
+  // Note: API key is intentionally public and required for @shopify/app-bridge-react
+  // It identifies the app but does not provide access without proper authentication
+  return { apiKey };
 };
 
 export default function App() {
