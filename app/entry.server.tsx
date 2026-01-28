@@ -45,7 +45,16 @@ export default async function handleRequest(
         },
         onError(error) {
           responseStatusCode = 500;
-          console.error(error);
+          // Only log full errors in development (Issue #34)
+          if (process.env.NODE_ENV === "production") {
+            console.error("Render error occurred", {
+              timestamp: new Date().toISOString(),
+              url: request.url,
+              // Do NOT include: error.stack, error.message, user data
+            });
+          } else {
+            console.error(error);
+          }
         },
       }
     );
