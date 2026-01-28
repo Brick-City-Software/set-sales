@@ -9,6 +9,7 @@ import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import db from "../db.server";
+import { checkRateLimit } from "../utils/rateLimit";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -26,6 +27,20 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
+
+  // Rate limiting: max 20 sale end operations per minute per shop (Issue #35)
+  const rateLimit = checkRateLimit(`${session.shop}:end_sale`, {
+    maxRequests: 20,
+    windowMs: 60000, // 1 minute
+  });
+
+  if (!rateLimit.allowed) {
+    const resetIn = Math.ceil((rateLimit.resetAt - Date.now()) / 1000);
+    return {
+      error: `Too many requests. Please try again in ${resetIn} seconds.`,
+    };
+  }
+
   const formData = await request.formData();
   const action = formData.get("action");
   const saleId = formData.get("saleId") as string;

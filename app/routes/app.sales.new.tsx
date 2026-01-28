@@ -10,6 +10,7 @@ import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import db from "../db.server";
 import { z } from "zod";
+import { checkRateLimit } from "../utils/rateLimit";
 
 interface ProductVariant {
   id: string;
@@ -159,6 +160,20 @@ const SaleCreationSchema = z.object({
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
+
+  // Rate limiting: max 10 sale creations per minute per shop (Issue #35)
+  const rateLimit = checkRateLimit(`${session.shop}:create_sale`, {
+    maxRequests: 10,
+    windowMs: 60000, // 1 minute
+  });
+
+  if (!rateLimit.allowed) {
+    const resetIn = Math.ceil((rateLimit.resetAt - Date.now()) / 1000);
+    return {
+      error: `Too many requests. Please try again in ${resetIn} seconds.`,
+    };
+  }
+
   const formData = await request.formData();
 
   // Parse and validate selectedVariants JSON (Issue #31)
