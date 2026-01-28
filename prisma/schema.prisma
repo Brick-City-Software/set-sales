@@ -39,6 +39,7 @@ model Sale {
   name          String
   discountType  String        // "percentage" | "fixed_amount" | "fixed_price"
   discountValue Float
+  status        String        @default("active") // "pending" | "active" | "ending" | "ended"
   status        String        @default("active") // "pending" | "active" | "ended"
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
