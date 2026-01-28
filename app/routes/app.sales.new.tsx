@@ -4,13 +4,21 @@ import type {
   HeadersFunction,
   LoaderFunctionArgs,
 } from "react-router";
-import { useLoaderData, useFetcher, useNavigate } from "react-router";
+import { useLoaderData, useFetcher, useNavigate, useNavigation } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import db from "../db.server";
 import { z } from "zod";
 import { checkRateLimit } from "../utils/rateLimit";
+import { LIMITS } from "../constants/limits";
+import type {
+  ShopifyProduct,
+  ShopifyVariant,
+  ProductsResponse,
+} from "../types/shopify";
+import { PAGINATION } from "../constants/pagination";
+import { calculateSalePrice } from "../utils/pricing";
 
 interface ProductVariant {
   id: string;
@@ -90,7 +98,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             featuredImage {
               url
             }
-            variants(first: 100) {
+            variants(first: ${PAGINATION.VARIANTS_PER_PRODUCT}) {
               edges {
                 node {
                   id
@@ -109,6 +117,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         first: 25,
         after: cursor || null,
         query,
+        first: PAGINATION.PRODUCTS_PER_PAGE,
+        after: cursor,
+        query: query || null,
       },
     },
   );
@@ -210,26 +221,119 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   // Additional validation for fixed_amount discount
   if (discountType === "fixed_amount" && discountValue > 1000000) {
     return { error: "Discount amount too large" };
+  // Validate required fields
+  if (!name || !discountType || isNaN(discountValue) || !selectedVariantsJson) {
+    return { error: "Missing required fields" };
+  }
+
+  // Validate name length
+  if (name.trim().length === 0) {
+    return { error: "Sale name cannot be empty" };
+  }
+
+  if (name.length > 255) {
+    return { error: "Sale name must be 255 characters or less" };
+  }
+
+  // Validate discount type
+  const validDiscountTypes = ["percentage", "fixed_amount", "fixed_price"];
+  if (!validDiscountTypes.includes(discountType)) {
+    return { error: "Invalid discount type" };
+  }
+
+  // Validate discount value based on type
+  if (discountType === "percentage") {
+    if (discountValue < 0 || discountValue > 100) {
+      return { error: "Percentage discount must be between 0 and 100" };
+    }
+  } else if (discountType === "fixed_amount" || discountType === "fixed_price") {
+    if (discountValue < 0) {
+      return { error: "Discount amount must be positive" };
+    }
+    if (discountValue > 1000000) {
+      return { error: "Discount amount exceeds maximum allowed value" };
+    }
+    if (discountType === "fixed_price" && discountValue < 0.01) {
+      return { error: "Fixed price must be at least $0.01" };
+    }
+  }
+
+  const selectedVariants = JSON.parse(selectedVariantsJson) as Array<{
+  // Parse and validate selected variants JSON
+  let selectedVariants: Array<{
+    variantId: string;
+    productId: string;
+    originalPrice: string;
+  }>;
+
+  try {
+    selectedVariants = JSON.parse(selectedVariantsJson);
+  } catch (error) {
+    return { error: "Invalid variant data format" };
+  }
+
+  // Validate structure
+  if (!Array.isArray(selectedVariants)) {
+    return { error: "Invalid variant data format" };
+  }
+
+  if (selectedVariants.length === 0) {
+    return { error: "No variants selected" };
+  }
+
+  // Validate variant limit
+  if (selectedVariants.length > LIMITS.MAX_VARIANTS_PER_SALE) {
+    return {
+      error: `Maximum ${LIMITS.MAX_VARIANTS_PER_SALE} variants allowed per sale. You selected ${selectedVariants.length} variants.`,
+  // Check for variants already in active sales (race condition prevention)
+  const variantIds = selectedVariants.map((v) => v.variantId);
+  const existingVariants = await db.saleVariant.findMany({
+    where: {
+      variantId: { in: variantIds },
+      sale: {
+        status: "active",
+        shop: session.shop,
+      },
+    },
+    include: {
+      sale: {
+        select: { id: true, name: true },
+      },
+    },
+  });
+
+  if (existingVariants.length > 0) {
+    // Get unique variant IDs that are conflicting
+    const conflictingVariantIds = new Set(
+      existingVariants.map((v) => v.variantId),
+    );
+    const conflictCount = conflictingVariantIds.size;
+
+    // Get sale names for context
+    const saleNames = [
+      ...new Set(existingVariants.map((v) => v.sale.name)),
+    ].slice(0, 3);
+    const saleNamesList = saleNames.join(", ");
+    const moreSales = existingVariants.length > saleNames.length;
+
+    return {
+      error: `${conflictCount} variant${conflictCount > 1 ? "s are" : " is"} already in active sale${moreSales ? "s" : ""}: ${saleNamesList}${moreSales ? "..." : ""}`,
+    };
+  // Validate each variant has required fields
+  for (const variant of selectedVariants) {
+    if (!variant.variantId || !variant.productId || !variant.originalPrice) {
+      return { error: "Invalid variant data structure" };
+    }
   }
 
   // Calculate sale prices
   const variantsWithSalePrice = selectedVariants.map((v) => {
     const originalPrice = parseFloat(v.originalPrice);
-    let salePrice: number;
-
-    switch (discountType) {
-      case "percentage":
-        salePrice = originalPrice * (1 - discountValue / 100);
-        break;
-      case "fixed_amount":
-        salePrice = Math.max(0.01, originalPrice - discountValue);
-        break;
-      case "fixed_price":
-        salePrice = discountValue;
-        break;
-      default:
-        salePrice = originalPrice;
-    }
+    const salePrice = calculateSalePrice(
+      originalPrice,
+      discountType,
+      discountValue,
+    );
 
     return {
       ...v,
@@ -253,7 +357,27 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     variantsByProduct.set(v.productId, existing);
   }
 
-  // Apply sale prices via GraphQL
+  // Step 1: Save sale to database with "pending" status
+  // This ensures we have a record even if Shopify API fails
+  const sale = await db.sale.create({
+    data: {
+      shop: session.shop,
+      name,
+      discountType,
+      discountValue,
+      status: "pending",
+      variants: {
+        create: variantsWithSalePrice.map((v) => ({
+          variantId: v.variantId,
+          productId: v.productId,
+          originalPrice: v.originalPrice,
+          salePrice: v.salePrice,
+        })),
+      },
+    },
+  });
+
+  // Step 2: Apply sale prices via GraphQL
   const errors: string[] = [];
   for (const [productId, variants] of variantsByProduct) {
     const response = await admin.graphql(
@@ -283,53 +407,27 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
   }
 
+  // Step 3: Handle success or failure
   if (errors.length > 0) {
+    // Rollback: Delete the sale from database since Shopify update failed
+    await db.sale.delete({ where: { id: sale.id } });
     return { error: `Failed to apply sale: ${errors.join(", ")}` };
   }
 
-  // Save sale to database
-  const sale = await db.sale.create({
-    data: {
-      shop: session.shop,
-      name,
-      discountType,
-      discountValue,
-      status: "active",
-      variants: {
-        create: variantsWithSalePrice.map((v) => ({
-          variantId: v.variantId,
-          productId: v.productId,
-          originalPrice: v.originalPrice,
-          salePrice: v.salePrice,
-        })),
-      },
-    },
+  // Step 4: Mark sale as active after successful price application
+  await db.sale.update({
+    where: { id: sale.id },
+    data: { status: "active" },
   });
 
   return { success: true, saleId: sale.id };
 };
 
-function calculateSalePrice(
-  originalPrice: number,
-  discountType: string,
-  discountValue: number,
-): number {
-  switch (discountType) {
-    case "percentage":
-      return originalPrice * (1 - discountValue / 100);
-    case "fixed_amount":
-      return Math.max(0.01, originalPrice - discountValue);
-    case "fixed_price":
-      return discountValue;
-    default:
-      return originalPrice;
-  }
-}
-
 export default function NewSale() {
   const { products, pageInfo, search } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
   const navigate = useNavigate();
+  const navigation = useNavigation();
   const shopify = useAppBridge();
 
   const [name, setName] = useState("");
@@ -341,6 +439,7 @@ export default function NewSale() {
   const [searchInput, setSearchInput] = useState(search);
 
   const isSubmitting = fetcher.state !== "idle";
+  const isLoading = navigation.state === "loading";
 
   useEffect(() => {
     if (fetcher.data?.success) {
@@ -371,7 +470,7 @@ export default function NewSale() {
     });
   };
 
-  const toggleProduct = (product: Product) => {
+  const toggleProduct = (product: ShopifyProduct) => {
     const variants = product.variants.edges
       .map((e) => e.node)
       .filter((v) => !v.compareAtPrice); // Exclude variants already on sale
@@ -433,6 +532,10 @@ export default function NewSale() {
 
   const discountValueNum = parseFloat(discountValue) || 0;
 
+  const isApproachingLimit =
+    selectedVariants.size > LIMITS.MAX_VARIANTS_PER_SALE * 0.8;
+  const isOverLimit = selectedVariants.size > LIMITS.MAX_VARIANTS_PER_SALE;
+
   return (
     <s-page heading="Create Sale">
       <s-button
@@ -440,9 +543,18 @@ export default function NewSale() {
         variant="primary"
         onClick={handleSubmit}
         {...(isSubmitting ? { loading: true } : {})}
+        {...(isOverLimit ? { disabled: true } : {})}
       >
         Create Sale ({selectedVariants.size} variants)
       </s-button>
+
+      {isApproachingLimit && (
+        <s-banner tone={isOverLimit ? "critical" : "warning"}>
+          {isOverLimit
+            ? `You've selected ${selectedVariants.size} variants. Maximum is ${LIMITS.MAX_VARIANTS_PER_SALE}.`
+            : `You've selected ${selectedVariants.size} variants. Maximum is ${LIMITS.MAX_VARIANTS_PER_SALE}.`}
+        </s-banner>
+      )}
 
       <s-section heading="Sale Details">
         <s-stack direction="block" gap="base">
@@ -524,10 +636,17 @@ export default function NewSale() {
               }}
               placeholder="Search by title..."
             />
-            <s-button onClick={handleSearch}>Search</s-button>
+            <s-button onClick={handleSearch} {...(isLoading ? { loading: true } : {})}>
+              Search
+            </s-button>
           </s-stack>
 
-          {products.length === 0 ? (
+          {isLoading ? (
+            <s-stack direction="block" gap="base" style={{ padding: "32px", alignItems: "center" }}>
+              <s-spinner size="large" />
+              <s-paragraph>Loading products...</s-paragraph>
+            </s-stack>
+          ) : products.length === 0 ? (
             <s-paragraph>No products found.</s-paragraph>
           ) : (
             <s-box>
@@ -624,7 +743,11 @@ export default function NewSale() {
           )}
 
           {pageInfo.hasNextPage && (
-            <s-button variant="tertiary" onClick={handleLoadMore}>
+            <s-button
+              variant="tertiary"
+              onClick={handleLoadMore}
+              {...(isLoading ? { loading: true } : {})}
+            >
               Load more products
             </s-button>
           )}

@@ -10,6 +10,7 @@ import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import db from "../db.server";
 import { checkRateLimit } from "../utils/rateLimit";
+import { formatDiscountType } from "../utils/pricing";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -122,6 +123,46 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         });
         return { error: `Failed to restore prices: ${errors.join(", ")}` };
       }
+    // Restore original prices for each product
+    const errors: string[] = [];
+    for (const [productId, variants] of variantsByProduct) {
+      const response = await admin.graphql(
+        `#graphql
+        mutation RestoreOriginalPrices($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+          productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+            productVariants {
+              id
+              price
+              compareAtPrice
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        {
+          variables: { productId, variants },
+        },
+      );
+
+      const result = await response.json();
+      const userErrors =
+        result.data?.productVariantsBulkUpdate?.userErrors || [];
+      if (userErrors.length > 0) {
+        errors.push(...userErrors.map((e: { message: string }) => e.message));
+      }
+    }
+
+    if (errors.length > 0) {
+      return { error: `Failed to restore prices: ${errors.join(", ")}` };
+    }
+
+    // Update sale status only if all price restorations succeeded
+    await db.sale.update({
+      where: { id: saleId },
+      data: { status: "ended" },
+    });
 
       // Finally update status to ended
       await db.sale.update({
@@ -146,24 +187,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   return { error: "Unknown action" };
 };
 
-function formatDiscountType(type: string, value: number): string {
-  switch (type) {
-    case "percentage":
-      return `${value}% off`;
-    case "fixed_amount":
-      return `$${value.toFixed(2)} off`;
-    case "fixed_price":
-      return `$${value.toFixed(2)}`;
-    default:
-      return String(value);
-  }
-}
-
 export default function SalesIndex() {
   const { sales } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
   const shopify = useAppBridge();
 
+  // Filter out pending sales (temporary state during creation)
   const activeSales = sales.filter((s) => s.status === "active");
   const endedSales = sales.filter((s) => s.status === "ended");
 
