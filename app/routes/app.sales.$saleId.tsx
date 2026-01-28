@@ -9,6 +9,7 @@ import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import db from "../db.server";
+import { checkRateLimit } from "../utils/rateLimit";
 import { formatDiscountType } from "../utils/pricing";
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
@@ -31,6 +32,20 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
+
+  // Rate limiting: max 20 sale end operations per minute per shop (Issue #35)
+  const rateLimit = checkRateLimit(`${session.shop}:end_sale`, {
+    maxRequests: 20,
+    windowMs: 60000, // 1 minute
+  });
+
+  if (!rateLimit.allowed) {
+    const resetIn = Math.ceil((rateLimit.resetAt - Date.now()) / 1000);
+    return {
+      error: `Too many requests. Please try again in ${resetIn} seconds.`,
+    };
+  }
+
   const formData = await request.formData();
   const action = formData.get("action");
   const saleId = params.saleId;
@@ -49,64 +64,87 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       return { error: "Sale is already ended" };
     }
 
-    // Group variants by product ID
-    const variantsByProduct = new Map<
-      string,
-      { id: string; price: string; compareAtPrice: null }[]
-    >();
-
-    for (const variant of sale.variants) {
-      const existing = variantsByProduct.get(variant.productId) || [];
-      existing.push({
-        id: variant.variantId,
-        price: variant.originalPrice,
-        compareAtPrice: null,
+    try {
+      // Update status to "ending" first to prevent race conditions (Issue #36)
+      await db.sale.update({
+        where: { id: saleId },
+        data: { status: "ending" },
       });
-      variantsByProduct.set(variant.productId, existing);
-    }
 
-    // Restore original prices for each product
-    const errors: string[] = [];
-    for (const [productId, variants] of variantsByProduct) {
-      const response = await admin.graphql(
-        `#graphql
-        mutation RestoreOriginalPrices($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
-          productVariantsBulkUpdate(productId: $productId, variants: $variants) {
-            productVariants {
-              id
-              price
-              compareAtPrice
-            }
-            userErrors {
-              field
-              message
-            }
-          }
-        }`,
-        {
-          variables: { productId, variants },
-        },
-      );
+      // Group variants by product ID
+      const variantsByProduct = new Map<
+        string,
+        { id: string; price: string; compareAtPrice: null }[]
+      >();
 
-      const result = await response.json();
-      const userErrors =
-        result.data?.productVariantsBulkUpdate?.userErrors || [];
-      if (userErrors.length > 0) {
-        errors.push(...userErrors.map((e: { message: string }) => e.message));
+      for (const variant of sale.variants) {
+        const existing = variantsByProduct.get(variant.productId) || [];
+        existing.push({
+          id: variant.variantId,
+          price: variant.originalPrice,
+          compareAtPrice: null,
+        });
+        variantsByProduct.set(variant.productId, existing);
       }
+
+      // Restore original prices for each product
+      const errors: string[] = [];
+      for (const [productId, variants] of variantsByProduct) {
+        const response = await admin.graphql(
+          `#graphql
+          mutation RestoreOriginalPrices($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+            productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+              productVariants {
+                id
+                price
+                compareAtPrice
+              }
+              userErrors {
+                field
+                message
+              }
+            }
+          }`,
+          {
+            variables: { productId, variants },
+          },
+        );
+
+        const result = await response.json();
+        const userErrors =
+          result.data?.productVariantsBulkUpdate?.userErrors || [];
+        if (userErrors.length > 0) {
+          errors.push(...userErrors.map((e: { message: string }) => e.message));
+        }
+      }
+
+      if (errors.length > 0) {
+        // Rollback: mark as failed but keep original status
+        await db.sale.update({
+          where: { id: saleId },
+          data: { status: sale.status },
+        });
+        return { error: `Failed to restore prices: ${errors.join(", ")}` };
+      }
+
+      // Finally update status to ended
+      await db.sale.update({
+        where: { id: saleId },
+        data: { status: "ended" },
+      });
+
+      return { success: true, message: "Sale ended successfully" };
+    } catch (error) {
+      // On any error, try to revert status
+      await db.sale.update({
+        where: { id: saleId },
+        data: { status: sale.status },
+      });
+      return {
+        error:
+          error instanceof Error ? error.message : "Failed to end sale",
+      };
     }
-
-    if (errors.length > 0) {
-      return { error: `Failed to restore prices: ${errors.join(", ")}` };
-    }
-
-    // Update sale status
-    await db.sale.update({
-      where: { id: saleId },
-      data: { status: "ended" },
-    });
-
-    return { success: true, message: "Sale ended successfully" };
   }
 
   return { error: "Unknown action" };

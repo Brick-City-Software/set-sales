@@ -15,6 +15,21 @@ export default async function handleRequest(
   reactRouterContext: EntryContext
 ) {
   addDocumentResponseHeaders(request, responseHeaders);
+
+  // Add Content Security Policy headers (Issue #37)
+  responseHeaders.set(
+    "Content-Security-Policy",
+    [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' cdn.shopify.com",
+      "style-src 'self' 'unsafe-inline' cdn.shopify.com",
+      "img-src 'self' data: https:",
+      "connect-src 'self' *.shopify.com *.shopifycdn.com",
+      "frame-ancestors 'self' https://*.myshopify.com https://admin.shopify.com",
+      "font-src 'self' data:",
+    ].join("; ")
+  );
+
   const userAgent = request.headers.get("user-agent");
   const callbackName = isbot(userAgent ?? '')
     ? "onAllReady"
@@ -45,7 +60,16 @@ export default async function handleRequest(
         },
         onError(error) {
           responseStatusCode = 500;
-          console.error(error);
+          // Only log full errors in development (Issue #34)
+          if (process.env.NODE_ENV === "production") {
+            console.error("Render error occurred", {
+              timestamp: new Date().toISOString(),
+              url: request.url,
+              // Do NOT include: error.stack, error.message, user data
+            });
+          } else {
+            console.error(error);
+          }
         },
       }
     );

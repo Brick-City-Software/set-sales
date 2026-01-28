@@ -9,6 +9,8 @@ import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import db from "../db.server";
+import { z } from "zod";
+import { checkRateLimit } from "../utils/rateLimit";
 import { LIMITS } from "../constants/limits";
 import type {
   ShopifyProduct,
@@ -48,13 +50,38 @@ interface ProductsResponse {
   };
 }
 
+// Validation schemas
+const LoaderParamsSchema = z.object({
+  cursor: z.string().regex(/^[A-Za-z0-9+/=]*$/, "Invalid cursor format").optional().nullable(),
+  search: z.string().max(100, "Search term too long").optional(),
+});
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin } = await authenticate.admin(request);
   const url = new URL(request.url);
-  const cursor = url.searchParams.get("cursor");
-  const search = url.searchParams.get("search") || "";
 
-  const query = search ? `title:*${search}*` : "";
+  // Validate and sanitize inputs (Issue #30, #33)
+  const paramsValidation = LoaderParamsSchema.safeParse({
+    cursor: url.searchParams.get("cursor"),
+    search: url.searchParams.get("search"),
+  });
+
+  if (!paramsValidation.success) {
+    return {
+      products: [],
+      pageInfo: { hasNextPage: false, endCursor: null },
+      search: "",
+    };
+  }
+
+  const { cursor, search } = paramsValidation.data;
+
+  // Sanitize search input to prevent GraphQL injection (Issue #30)
+  const sanitizedSearch = search
+    ? search.replace(/[*"\\]/g, "\\$&").trim()
+    : "";
+
+  const query = sanitizedSearch ? `title:*${sanitizedSearch}*` : null;
 
   const response = await admin.graphql(
     `#graphql
@@ -87,6 +114,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }`,
     {
       variables: {
+        first: 25,
+        after: cursor || null,
+        query,
         first: PAGINATION.PRODUCTS_PER_PAGE,
         after: cursor,
         query: query || null,
@@ -99,19 +129,98 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return {
     products: data.products.edges.map((e) => e.node),
     pageInfo: data.products.pageInfo,
-    search,
+    search: search || "",
   };
 };
 
+// Validation schema for sale creation (Issue #31, #32)
+const SelectedVariantSchema = z.object({
+  variantId: z.string().min(1, "Variant ID required"),
+  productId: z.string().min(1, "Product ID required"),
+  originalPrice: z.string().regex(/^\d+(\.\d{1,2})?$/, "Invalid price format"),
+});
+
+const SaleCreationSchema = z.object({
+  name: z
+    .string()
+    .min(1, "Sale name required")
+    .max(255, "Sale name too long")
+    .regex(/^[\w\s\-()&,.!]+$/, "Invalid characters in sale name"),
+  discountType: z.enum(["percentage", "fixed_amount", "fixed_price"], {
+    errorMap: () => ({ message: "Invalid discount type" }),
+  }),
+  discountValue: z.coerce
+    .number({ invalid_type_error: "Discount value must be a number" })
+    .positive("Discount value must be positive")
+    .finite("Discount value must be finite")
+    .refine(
+      (val, ctx) => {
+        const discountType = ctx.path[0] === "discountValue" ? "percentage" : "";
+        if (discountType === "percentage" && val > 100) {
+          return false;
+        }
+        return val <= 1000000;
+      },
+      { message: "Discount value too large" }
+    ),
+  selectedVariants: z
+    .array(SelectedVariantSchema)
+    .min(1, "At least one variant required")
+    .max(500, "Too many variants selected"),
+});
+
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
+
+  // Rate limiting: max 10 sale creations per minute per shop (Issue #35)
+  const rateLimit = checkRateLimit(`${session.shop}:create_sale`, {
+    maxRequests: 10,
+    windowMs: 60000, // 1 minute
+  });
+
+  if (!rateLimit.allowed) {
+    const resetIn = Math.ceil((rateLimit.resetAt - Date.now()) / 1000);
+    return {
+      error: `Too many requests. Please try again in ${resetIn} seconds.`,
+    };
+  }
+
   const formData = await request.formData();
 
-  const name = formData.get("name") as string;
-  const discountType = formData.get("discountType") as string;
-  const discountValue = parseFloat(formData.get("discountValue") as string);
+  // Parse and validate selectedVariants JSON (Issue #31)
   const selectedVariantsJson = formData.get("selectedVariants") as string;
+  let parsedVariants;
 
+  try {
+    parsedVariants = JSON.parse(selectedVariantsJson);
+  } catch (error) {
+    return { error: "Invalid variant data format" };
+  }
+
+  // Validate all inputs with comprehensive schema (Issue #32)
+  const validationResult = SaleCreationSchema.safeParse({
+    name: formData.get("name"),
+    discountType: formData.get("discountType"),
+    discountValue: formData.get("discountValue"),
+    selectedVariants: parsedVariants,
+  });
+
+  if (!validationResult.success) {
+    const firstError = validationResult.error.errors[0];
+    return { error: firstError.message };
+  }
+
+  const { name, discountType, discountValue, selectedVariants } =
+    validationResult.data;
+
+  // Additional validation for percentage discount
+  if (discountType === "percentage" && discountValue > 100) {
+    return { error: "Percentage discount cannot exceed 100%" };
+  }
+
+  // Additional validation for fixed_amount discount
+  if (discountType === "fixed_amount" && discountValue > 1000000) {
+    return { error: "Discount amount too large" };
   // Validate required fields
   if (!name || !discountType || isNaN(discountValue) || !selectedVariantsJson) {
     return { error: "Missing required fields" };
