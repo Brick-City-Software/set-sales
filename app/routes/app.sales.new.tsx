@@ -4,7 +4,7 @@ import type {
   HeadersFunction,
   LoaderFunctionArgs,
 } from "react-router";
-import { useLoaderData, useFetcher, useNavigate, useNavigation } from "react-router";
+import { useLoaderData, useFetcher, useNavigate, useNavigation, useRouteError, isRouteErrorResponse, Link } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
@@ -30,22 +30,11 @@ interface ProductVariant {
 interface Product {
   id: string;
   title: string;
+  status: string;
   featuredImage: { url: string } | null;
   variants: {
     edges: Array<{
       node: ProductVariant;
-    }>;
-  };
-}
-
-interface ProductsResponse {
-  products: {
-    pageInfo: {
-      hasNextPage: boolean;
-      endCursor: string | null;
-    };
-    edges: Array<{
-      node: Product;
     }>;
   };
 }
@@ -95,6 +84,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           node {
             id
             title
+            status
             featuredImage {
               url
             }
@@ -114,9 +104,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }`,
     {
       variables: {
-        first: 25,
-        after: cursor || null,
-        query,
         first: PAGINATION.PRODUCTS_PER_PAGE,
         after: cursor,
         query: query || null,
@@ -126,8 +113,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const data = (await response.json()).data as ProductsResponse;
 
+  // Filter to only include ACTIVE products (exclude ARCHIVED and DRAFT)
+  const activeProducts = data.products.edges
+    .map((e) => e.node)
+    .filter((product) => product.status === "ACTIVE");
+
   return {
-    products: data.products.edges.map((e) => e.node),
+    products: activeProducts,
     pageInfo: data.products.pageInfo,
     search: search || "",
   };
@@ -140,34 +132,35 @@ const SelectedVariantSchema = z.object({
   originalPrice: z.string().regex(/^\d+(\.\d{1,2})?$/, "Invalid price format"),
 });
 
-const SaleCreationSchema = z.object({
-  name: z
-    .string()
-    .min(1, "Sale name required")
-    .max(255, "Sale name too long")
-    .regex(/^[\w\s\-()&,.!]+$/, "Invalid characters in sale name"),
-  discountType: z.enum(["percentage", "fixed_amount", "fixed_price"], {
-    errorMap: () => ({ message: "Invalid discount type" }),
-  }),
-  discountValue: z.coerce
-    .number({ invalid_type_error: "Discount value must be a number" })
-    .positive("Discount value must be positive")
-    .finite("Discount value must be finite")
-    .refine(
-      (val, ctx) => {
-        const discountType = ctx.path[0] === "discountValue" ? "percentage" : "";
-        if (discountType === "percentage" && val > 100) {
-          return false;
-        }
-        return val <= 1000000;
-      },
-      { message: "Discount value too large" }
-    ),
-  selectedVariants: z
-    .array(SelectedVariantSchema)
-    .min(1, "At least one variant required")
-    .max(500, "Too many variants selected"),
-});
+const SaleCreationSchema = z
+  .object({
+    name: z
+      .string()
+      .min(1, "Sale name required")
+      .max(255, "Sale name too long")
+      .trim(),
+    discountType: z.enum(["percentage", "fixed_amount", "fixed_price"], {
+      message: "Invalid discount type",
+    }),
+    discountValue: z.coerce
+      .number()
+      .positive("Discount value must be positive")
+      .finite("Discount value must be finite")
+      .max(1000000, "Discount value too large"),
+    selectedVariants: z
+      .array(SelectedVariantSchema)
+      .min(1, "At least one variant required")
+      .max(500, "Too many variants selected"),
+  })
+  .refine(
+    (data) => {
+      if (data.discountType === "percentage" && data.discountValue > 100) {
+        return false;
+      }
+      return true;
+    },
+    { message: "Percentage discount cannot exceed 100%", path: ["discountValue"] }
+  );
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
@@ -206,85 +199,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   });
 
   if (!validationResult.success) {
-    const firstError = validationResult.error.errors[0];
+    const firstError = validationResult.error.issues[0];
     return { error: firstError.message };
   }
 
   const { name, discountType, discountValue, selectedVariants } =
     validationResult.data;
 
-  // Additional validation for percentage discount
-  if (discountType === "percentage" && discountValue > 100) {
-    return { error: "Percentage discount cannot exceed 100%" };
-  }
-
-  // Additional validation for fixed_amount discount
-  if (discountType === "fixed_amount" && discountValue > 1000000) {
-    return { error: "Discount amount too large" };
-  // Validate required fields
-  if (!name || !discountType || isNaN(discountValue) || !selectedVariantsJson) {
-    return { error: "Missing required fields" };
-  }
-
-  // Validate name length
-  if (name.trim().length === 0) {
-    return { error: "Sale name cannot be empty" };
-  }
-
-  if (name.length > 255) {
-    return { error: "Sale name must be 255 characters or less" };
-  }
-
-  // Validate discount type
-  const validDiscountTypes = ["percentage", "fixed_amount", "fixed_price"];
-  if (!validDiscountTypes.includes(discountType)) {
-    return { error: "Invalid discount type" };
-  }
-
-  // Validate discount value based on type
-  if (discountType === "percentage") {
-    if (discountValue < 0 || discountValue > 100) {
-      return { error: "Percentage discount must be between 0 and 100" };
-    }
-  } else if (discountType === "fixed_amount" || discountType === "fixed_price") {
-    if (discountValue < 0) {
-      return { error: "Discount amount must be positive" };
-    }
-    if (discountValue > 1000000) {
-      return { error: "Discount amount exceeds maximum allowed value" };
-    }
-    if (discountType === "fixed_price" && discountValue < 0.01) {
-      return { error: "Fixed price must be at least $0.01" };
-    }
-  }
-
-  const selectedVariants = JSON.parse(selectedVariantsJson) as Array<{
-  // Parse and validate selected variants JSON
-  let selectedVariants: Array<{
-    variantId: string;
-    productId: string;
-    originalPrice: string;
-  }>;
-
-  try {
-    selectedVariants = JSON.parse(selectedVariantsJson);
-  } catch (error) {
-    return { error: "Invalid variant data format" };
-  }
-
-  // Validate structure
-  if (!Array.isArray(selectedVariants)) {
-    return { error: "Invalid variant data format" };
-  }
-
-  if (selectedVariants.length === 0) {
-    return { error: "No variants selected" };
-  }
-
-  // Validate variant limit
-  if (selectedVariants.length > LIMITS.MAX_VARIANTS_PER_SALE) {
-    return {
-      error: `Maximum ${LIMITS.MAX_VARIANTS_PER_SALE} variants allowed per sale. You selected ${selectedVariants.length} variants.`,
   // Check for variants already in active sales (race condition prevention)
   const variantIds = selectedVariants.map((v) => v.variantId);
   const existingVariants = await db.saleVariant.findMany({
@@ -319,6 +240,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return {
       error: `${conflictCount} variant${conflictCount > 1 ? "s are" : " is"} already in active sale${moreSales ? "s" : ""}: ${saleNamesList}${moreSales ? "..." : ""}`,
     };
+  }
+
   // Validate each variant has required fields
   for (const variant of selectedVariants) {
     if (!variant.variantId || !variant.productId || !variant.originalPrice) {
@@ -642,10 +565,10 @@ export default function NewSale() {
           </s-stack>
 
           {isLoading ? (
-            <s-stack direction="block" gap="base" style={{ padding: "32px", alignItems: "center" }}>
+            <div style={{ padding: "32px", display: "flex", flexDirection: "column", alignItems: "center", gap: "16px" }}>
               <s-spinner size="large" />
               <s-paragraph>Loading products...</s-paragraph>
-            </s-stack>
+            </div>
           ) : products.length === 0 ? (
             <s-paragraph>No products found.</s-paragraph>
           ) : (
@@ -727,7 +650,7 @@ export default function NewSale() {
                               {isOnSale ? (
                                 <s-badge tone="warning">Already on sale</s-badge>
                               ) : isSelected ? (
-                                <span style={{ color: "green" }}>
+                                <span style={{ color: "var(--p-color-text-success)" }}>
                                   → ${salePrice.toFixed(2)}
                                 </span>
                               ) : null}
@@ -769,6 +692,27 @@ export default function NewSale() {
           </s-paragraph>
         </s-stack>
       </s-section>
+    </s-page>
+  );
+}
+
+export function ErrorBoundary() {
+  const error = useRouteError();
+
+  return (
+    <s-page heading="Error Creating Sale">
+      <s-banner tone="critical">
+        <s-paragraph>
+          {isRouteErrorResponse(error)
+            ? `${error.status} ${error.statusText}`
+            : error instanceof Error
+            ? error.message
+            : "An unexpected error occurred"}
+        </s-paragraph>
+      </s-banner>
+      <Link to="/app/sales">
+        <s-button>Back to Sales</s-button>
+      </Link>
     </s-page>
   );
 }

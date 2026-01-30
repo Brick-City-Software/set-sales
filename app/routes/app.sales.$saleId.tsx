@@ -1,16 +1,17 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import type {
   ActionFunctionArgs,
   HeadersFunction,
   LoaderFunctionArgs,
 } from "react-router";
-import { useLoaderData, useFetcher, useNavigate, Link } from "react-router";
+import { useLoaderData, useFetcher, useNavigate, Link, useRouteError, isRouteErrorResponse, useNavigation } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import db from "../db.server";
 import { checkRateLimit } from "../utils/rateLimit";
 import { formatDiscountType } from "../utils/pricing";
+import { formatDate } from "../utils/date";
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -153,14 +154,18 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 export default function SaleDetail() {
   const { sale } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
+  const navigation = useNavigation();
   const navigate = useNavigate();
   const shopify = useAppBridge();
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   const isEnding = fetcher.state !== "idle";
+  const isLoading = navigation.state === "loading";
 
   useEffect(() => {
     if (fetcher.data?.success) {
       shopify.toast.show("Sale ended - prices restored");
+      setShowConfirmModal(false);
       navigate("/app/sales");
     }
     if (fetcher.data?.error) {
@@ -169,13 +174,11 @@ export default function SaleDetail() {
   }, [fetcher.data, shopify, navigate]);
 
   const handleEndSale = () => {
-    if (
-      confirm(
-        "Are you sure you want to end this sale? Original prices will be restored.",
-      )
-    ) {
-      fetcher.submit({ action: "end" }, { method: "POST" });
-    }
+    setShowConfirmModal(true);
+  };
+
+  const confirmEndSale = () => {
+    fetcher.submit({ action: "end" }, { method: "POST" });
   };
 
   // Calculate totals
@@ -188,6 +191,17 @@ export default function SaleDetail() {
     0,
   );
   const totalSavings = totalOriginal - totalSale;
+
+  if (isLoading) {
+    return (
+      <s-page heading="Sale Details">
+        <s-skeleton-page>
+          <s-skeleton-display-text />
+          <s-skeleton-body-text lines={8} />
+        </s-skeleton-page>
+      </s-page>
+    );
+  }
 
   return (
     <s-page heading={sale.name}>
@@ -232,80 +246,71 @@ export default function SaleDetail() {
           <s-box padding="base" borderWidth="base" borderRadius="base">
             <strong>Created</strong>
             <br />
-            {new Date(sale.createdAt).toLocaleDateString()}
+            {formatDate(sale.createdAt)}
           </s-box>
         </s-stack>
       </s-section>
 
       <s-section heading={`Products on Sale (${sale.variants.length} variants)`}>
-        <s-box>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ borderBottom: "1px solid #ddd" }}>
-                <th style={{ textAlign: "left", padding: "8px" }}>Variant ID</th>
-                <th style={{ textAlign: "right", padding: "8px" }}>
-                  Original Price
-                </th>
-                <th style={{ textAlign: "right", padding: "8px" }}>Sale Price</th>
-                <th style={{ textAlign: "right", padding: "8px" }}>Savings</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sale.variants.map((variant) => {
-                const original = parseFloat(variant.originalPrice);
-                const salePrice = parseFloat(variant.salePrice);
-                const savings = original - salePrice;
+        <s-table variant="auto">
+          <s-table-header>
+            <s-table-header-row>
+              <s-table-header>Variant ID</s-table-header>
+              <s-table-header>Original Price</s-table-header>
+              <s-table-header>Sale Price</s-table-header>
+              <s-table-header>Savings</s-table-header>
+            </s-table-header-row>
+          </s-table-header>
+          <s-table-body>
+            {sale.variants.map((variant) => {
+              const original = parseFloat(variant.originalPrice);
+              const salePrice = parseFloat(variant.salePrice);
+              const savings = original - salePrice;
 
-                return (
-                  <tr
-                    key={variant.id}
-                    style={{ borderBottom: "1px solid #eee" }}
-                  >
-                    <td style={{ padding: "8px" }}>
-                      {variant.variantId.split("/").pop()}
-                    </td>
-                    <td style={{ textAlign: "right", padding: "8px" }}>
-                      <span
-                        style={{
-                          textDecoration:
-                            sale.status === "active" ? "line-through" : "none",
-                        }}
-                      >
-                        ${original.toFixed(2)}
-                      </span>
-                    </td>
-                    <td style={{ textAlign: "right", padding: "8px" }}>
-                      <strong style={{ color: "green" }}>
-                        ${salePrice.toFixed(2)}
-                      </strong>
-                    </td>
-                    <td style={{ textAlign: "right", padding: "8px" }}>
-                      <span style={{ color: "green" }}>${savings.toFixed(2)}</span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-            <tfoot>
-              <tr style={{ borderTop: "2px solid #ddd" }}>
-                <td style={{ padding: "8px" }}>
-                  <strong>Total</strong>
-                </td>
-                <td style={{ textAlign: "right", padding: "8px" }}>
-                  <strong>${totalOriginal.toFixed(2)}</strong>
-                </td>
-                <td style={{ textAlign: "right", padding: "8px" }}>
-                  <strong>${totalSale.toFixed(2)}</strong>
-                </td>
-                <td style={{ textAlign: "right", padding: "8px" }}>
-                  <strong style={{ color: "green" }}>
-                    ${totalSavings.toFixed(2)}
-                  </strong>
-                </td>
-              </tr>
-            </tfoot>
-          </table>
-        </s-box>
+              return (
+                <s-table-row key={variant.id}>
+                  <s-table-cell>
+                    {variant.variantId.split("/").pop()}
+                  </s-table-cell>
+                  <s-table-cell>
+                    <span
+                      style={{
+                        textDecoration:
+                          sale.status === "active" ? "line-through" : "none",
+                      }}
+                    >
+                      ${original.toFixed(2)}
+                    </span>
+                  </s-table-cell>
+                  <s-table-cell>
+                    <strong style={{ color: "var(--p-color-text-success)" }}>
+                      ${salePrice.toFixed(2)}
+                    </strong>
+                  </s-table-cell>
+                  <s-table-cell>
+                    <span style={{ color: "var(--p-color-text-success)" }}>${savings.toFixed(2)}</span>
+                  </s-table-cell>
+                </s-table-row>
+              );
+            })}
+            <s-table-row>
+              <s-table-cell>
+                <strong>Total</strong>
+              </s-table-cell>
+              <s-table-cell>
+                <strong>${totalOriginal.toFixed(2)}</strong>
+              </s-table-cell>
+              <s-table-cell>
+                <strong>${totalSale.toFixed(2)}</strong>
+              </s-table-cell>
+              <s-table-cell>
+                <strong style={{ color: "var(--p-color-text-success)" }}>
+                  ${totalSavings.toFixed(2)}
+                </strong>
+              </s-table-cell>
+            </s-table-row>
+          </s-table-body>
+        </s-table>
       </s-section>
 
       <s-section slot="aside" heading="Quick Stats">
@@ -323,6 +328,51 @@ export default function SaleDetail() {
           </s-paragraph>
         </s-stack>
       </s-section>
+
+      {showConfirmModal && (
+        <s-modal heading="End Sale">
+          <s-button
+            slot="primary-action"
+            variant="primary"
+            tone="critical"
+            onClick={confirmEndSale}
+            {...(isEnding ? { loading: true } : {})}
+          >
+            End Sale
+          </s-button>
+          <s-button
+            slot="secondary-actions"
+            onClick={() => setShowConfirmModal(false)}
+          >
+            Cancel
+          </s-button>
+          <s-paragraph>
+            Are you sure you want to end this sale? Original prices will be
+            restored.
+          </s-paragraph>
+        </s-modal>
+      )}
+    </s-page>
+  );
+}
+
+export function ErrorBoundary() {
+  const error = useRouteError();
+
+  return (
+    <s-page heading="Error Loading Sale">
+      <s-banner tone="critical">
+        <s-paragraph>
+          {isRouteErrorResponse(error)
+            ? `${error.status} ${error.statusText}`
+            : error instanceof Error
+            ? error.message
+            : "An unexpected error occurred"}
+        </s-paragraph>
+      </s-banner>
+      <Link to="/app/sales">
+        <s-button>Back to Sales</s-button>
+      </Link>
     </s-page>
   );
 }

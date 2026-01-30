@@ -1,5 +1,31 @@
 # Set Sales Changelog
 
+All notable changes to Set Sales will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+
+## [0.9.0] - 2026-01-30
+
+### Added - Shopify Design Guidelines Compliance
+- Polaris Modal components for destructive action confirmations (#44)
+- Proper empty states with Shopify-branded illustrations (#45)
+- Error boundaries on all route files for better error isolation (#47)
+- Skeleton loading states for improved perceived performance (#48)
+- Date formatting utility with consistent en-US locale (#49)
+- Product status filtering to exclude archived/draft products (#52)
+
+### Changed - UI/UX Improvements
+- Replaced native HTML tables with Polaris Table components (#46)
+- Replaced native confirm() dialogs with Polaris modals
+- Replaced hardcoded colors with Polaris design tokens (#58)
+- Standardized date formatting across the app
+- Enhanced mobile responsiveness with Polaris auto-adaptive tables
+
+### Security
+- API version alignment between webhook config and app code (#41)
+- Webhook registration after OAuth flow (#42)
+- API key validation in app loader (#38)
+
 ## Unreleased
 
 ### Added
