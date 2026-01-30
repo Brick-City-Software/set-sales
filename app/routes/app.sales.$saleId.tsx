@@ -11,6 +11,7 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import db from "../db.server";
 import { checkRateLimit } from "../utils/rateLimit";
 import { formatDiscountType } from "../utils/pricing";
+import { formatDate } from "../utils/date";
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -245,7 +246,7 @@ export default function SaleDetail() {
           <s-box padding="base" borderWidth="base" borderRadius="base">
             <strong>Created</strong>
             <br />
-            {new Date(sale.createdAt).toLocaleDateString()}
+            {formatDate(sale.createdAt)}
           </s-box>
         </s-stack>
       </s-section>

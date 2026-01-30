@@ -11,6 +11,7 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import db from "../db.server";
 import { checkRateLimit } from "../utils/rateLimit";
 import { formatDiscountType } from "../utils/pricing";
+import { formatDate } from "../utils/date";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -253,7 +254,7 @@ export default function SalesIndex() {
                       </s-table-cell>
                       <s-table-cell>{sale.variants.length}</s-table-cell>
                       <s-table-cell>
-                        {new Date(sale.createdAt).toLocaleDateString()}
+                        {formatDate(sale.createdAt)}
                       </s-table-cell>
                       <s-table-cell>
                         <s-stack direction="inline" gap="base">
@@ -302,7 +303,7 @@ export default function SalesIndex() {
                       </s-table-cell>
                       <s-table-cell>{sale.variants.length}</s-table-cell>
                       <s-table-cell>
-                        {new Date(sale.createdAt).toLocaleDateString()}
+                        {formatDate(sale.createdAt)}
                       </s-table-cell>
                       <s-table-cell>
                         <Link to={`/app/sales/${sale.id}`}>
