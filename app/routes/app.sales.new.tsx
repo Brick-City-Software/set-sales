@@ -650,7 +650,7 @@ export default function NewSale() {
                               {isOnSale ? (
                                 <s-badge tone="warning">Already on sale</s-badge>
                               ) : isSelected ? (
-                                <span style={{ color: "green" }}>
+                                <span style={{ color: "var(--p-color-text-success)" }}>
                                   → ${salePrice.toFixed(2)}
                                 </span>
                               ) : null}

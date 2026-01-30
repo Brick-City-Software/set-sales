@@ -79,7 +79,7 @@ export default function Dashboard() {
               <div style={{ fontSize: "24px", fontWeight: "bold" }}>
                 {stats.activeSalesCount}
               </div>
-              <div style={{ color: "#6d7175" }}>Active Sales</div>
+              <div style={{ color: "var(--p-color-text-subdued)" }}>Active Sales</div>
             </s-stack>
           </s-section>
 
@@ -88,7 +88,7 @@ export default function Dashboard() {
               <div style={{ fontSize: "24px", fontWeight: "bold" }}>
                 {stats.totalVariantsOnSale}
               </div>
-              <div style={{ color: "#6d7175" }}>Variants on Sale</div>
+              <div style={{ color: "var(--p-color-text-subdued)" }}>Variants on Sale</div>
             </s-stack>
           </s-section>
 
@@ -97,7 +97,7 @@ export default function Dashboard() {
               <div style={{ fontSize: "24px", fontWeight: "bold" }}>
                 ${stats.totalSavings.toFixed(2)}
               </div>
-              <div style={{ color: "#6d7175" }}>Total Savings Offered</div>
+              <div style={{ color: "var(--p-color-text-subdued)" }}>Total Savings Offered</div>
             </s-stack>
           </s-section>
         </div>
