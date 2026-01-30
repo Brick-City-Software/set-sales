@@ -238,74 +238,65 @@ export default function SaleDetail() {
       </s-section>
 
       <s-section heading={`Products on Sale (${sale.variants.length} variants)`}>
-        <s-box>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ borderBottom: "1px solid #ddd" }}>
-                <th style={{ textAlign: "left", padding: "8px" }}>Variant ID</th>
-                <th style={{ textAlign: "right", padding: "8px" }}>
-                  Original Price
-                </th>
-                <th style={{ textAlign: "right", padding: "8px" }}>Sale Price</th>
-                <th style={{ textAlign: "right", padding: "8px" }}>Savings</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sale.variants.map((variant) => {
-                const original = parseFloat(variant.originalPrice);
-                const salePrice = parseFloat(variant.salePrice);
-                const savings = original - salePrice;
+        <s-table variant="auto">
+          <s-table-header>
+            <s-table-header-row>
+              <s-table-header>Variant ID</s-table-header>
+              <s-table-header>Original Price</s-table-header>
+              <s-table-header>Sale Price</s-table-header>
+              <s-table-header>Savings</s-table-header>
+            </s-table-header-row>
+          </s-table-header>
+          <s-table-body>
+            {sale.variants.map((variant) => {
+              const original = parseFloat(variant.originalPrice);
+              const salePrice = parseFloat(variant.salePrice);
+              const savings = original - salePrice;
 
-                return (
-                  <tr
-                    key={variant.id}
-                    style={{ borderBottom: "1px solid #eee" }}
-                  >
-                    <td style={{ padding: "8px" }}>
-                      {variant.variantId.split("/").pop()}
-                    </td>
-                    <td style={{ textAlign: "right", padding: "8px" }}>
-                      <span
-                        style={{
-                          textDecoration:
-                            sale.status === "active" ? "line-through" : "none",
-                        }}
-                      >
-                        ${original.toFixed(2)}
-                      </span>
-                    </td>
-                    <td style={{ textAlign: "right", padding: "8px" }}>
-                      <strong style={{ color: "green" }}>
-                        ${salePrice.toFixed(2)}
-                      </strong>
-                    </td>
-                    <td style={{ textAlign: "right", padding: "8px" }}>
-                      <span style={{ color: "green" }}>${savings.toFixed(2)}</span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-            <tfoot>
-              <tr style={{ borderTop: "2px solid #ddd" }}>
-                <td style={{ padding: "8px" }}>
-                  <strong>Total</strong>
-                </td>
-                <td style={{ textAlign: "right", padding: "8px" }}>
-                  <strong>${totalOriginal.toFixed(2)}</strong>
-                </td>
-                <td style={{ textAlign: "right", padding: "8px" }}>
-                  <strong>${totalSale.toFixed(2)}</strong>
-                </td>
-                <td style={{ textAlign: "right", padding: "8px" }}>
-                  <strong style={{ color: "green" }}>
-                    ${totalSavings.toFixed(2)}
-                  </strong>
-                </td>
-              </tr>
-            </tfoot>
-          </table>
-        </s-box>
+              return (
+                <s-table-row key={variant.id}>
+                  <s-table-cell>
+                    {variant.variantId.split("/").pop()}
+                  </s-table-cell>
+                  <s-table-cell>
+                    <span
+                      style={{
+                        textDecoration:
+                          sale.status === "active" ? "line-through" : "none",
+                      }}
+                    >
+                      ${original.toFixed(2)}
+                    </span>
+                  </s-table-cell>
+                  <s-table-cell>
+                    <strong style={{ color: "green" }}>
+                      ${salePrice.toFixed(2)}
+                    </strong>
+                  </s-table-cell>
+                  <s-table-cell>
+                    <span style={{ color: "green" }}>${savings.toFixed(2)}</span>
+                  </s-table-cell>
+                </s-table-row>
+              );
+            })}
+            <s-table-row>
+              <s-table-cell>
+                <strong>Total</strong>
+              </s-table-cell>
+              <s-table-cell>
+                <strong>${totalOriginal.toFixed(2)}</strong>
+              </s-table-cell>
+              <s-table-cell>
+                <strong>${totalSale.toFixed(2)}</strong>
+              </s-table-cell>
+              <s-table-cell>
+                <strong style={{ color: "green" }}>
+                  ${totalSavings.toFixed(2)}
+                </strong>
+              </s-table-cell>
+            </s-table-row>
+          </s-table-body>
+        </s-table>
       </s-section>
 
       <s-section slot="aside" heading="Quick Stats">

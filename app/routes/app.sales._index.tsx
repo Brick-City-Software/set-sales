@@ -217,93 +217,89 @@ export default function SalesIndex() {
                 </Link>
               </s-empty-state>
             ) : (
-              <s-box>
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                  <thead>
-                    <tr style={{ borderBottom: "1px solid #ddd" }}>
-                      <th style={{ textAlign: "left", padding: "8px" }}>Name</th>
-                      <th style={{ textAlign: "left", padding: "8px" }}>Discount</th>
-                      <th style={{ textAlign: "left", padding: "8px" }}>Variants</th>
-                      <th style={{ textAlign: "left", padding: "8px" }}>Created</th>
-                      <th style={{ textAlign: "right", padding: "8px" }}>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {activeSales.map((sale) => (
-                      <tr key={sale.id} style={{ borderBottom: "1px solid #eee" }}>
-                        <td style={{ padding: "8px" }}>
+              <s-table variant="auto">
+                <s-table-header>
+                  <s-table-header-row>
+                    <s-table-header>Name</s-table-header>
+                    <s-table-header>Discount</s-table-header>
+                    <s-table-header>Variants</s-table-header>
+                    <s-table-header>Created</s-table-header>
+                    <s-table-header>Actions</s-table-header>
+                  </s-table-header-row>
+                </s-table-header>
+                <s-table-body>
+                  {activeSales.map((sale) => (
+                    <s-table-row key={sale.id}>
+                      <s-table-cell>
+                        <Link to={`/app/sales/${sale.id}`}>
+                          <s-link>{sale.name}</s-link>
+                        </Link>
+                      </s-table-cell>
+                      <s-table-cell>
+                        {formatDiscountType(sale.discountType, sale.discountValue)}
+                      </s-table-cell>
+                      <s-table-cell>{sale.variants.length}</s-table-cell>
+                      <s-table-cell>
+                        {new Date(sale.createdAt).toLocaleDateString()}
+                      </s-table-cell>
+                      <s-table-cell>
+                        <s-stack direction="inline" gap="base">
                           <Link to={`/app/sales/${sale.id}`}>
-                            <s-link>{sale.name}</s-link>
+                            <s-button variant="tertiary">View</s-button>
                           </Link>
-                        </td>
-                        <td style={{ padding: "8px" }}>
-                          {formatDiscountType(sale.discountType, sale.discountValue)}
-                        </td>
-                        <td style={{ padding: "8px" }}>{sale.variants.length}</td>
-                        <td style={{ padding: "8px" }}>
-                          {new Date(sale.createdAt).toLocaleDateString()}
-                        </td>
-                        <td style={{ textAlign: "right", padding: "8px" }}>
-                          <s-stack direction="inline" gap="base">
-                            <Link to={`/app/sales/${sale.id}`}>
-                              <s-button variant="tertiary">View</s-button>
-                            </Link>
-                            <s-button
-                              variant="primary"
-                              tone="critical"
-                              onClick={() => handleEndSale(sale.id)}
-                              {...(isEnding ? { loading: true } : {})}
-                            >
-                              End Sale
-                            </s-button>
-                          </s-stack>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </s-box>
+                          <s-button
+                            variant="primary"
+                            tone="critical"
+                            onClick={() => handleEndSale(sale.id)}
+                            {...(isEnding ? { loading: true } : {})}
+                          >
+                            End Sale
+                          </s-button>
+                        </s-stack>
+                      </s-table-cell>
+                    </s-table-row>
+                  ))}
+                </s-table-body>
+              </s-table>
             )}
           </s-section>
 
           {endedSales.length > 0 && (
             <s-section heading={`Past Sales (${endedSales.length})`}>
-              <s-box>
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                  <thead>
-                    <tr style={{ borderBottom: "1px solid #ddd" }}>
-                      <th style={{ textAlign: "left", padding: "8px" }}>Name</th>
-                      <th style={{ textAlign: "left", padding: "8px" }}>Discount</th>
-                      <th style={{ textAlign: "left", padding: "8px" }}>Variants</th>
-                      <th style={{ textAlign: "left", padding: "8px" }}>Created</th>
-                      <th style={{ textAlign: "right", padding: "8px" }}>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {endedSales.map((sale) => (
-                      <tr key={sale.id} style={{ borderBottom: "1px solid #eee" }}>
-                        <td style={{ padding: "8px" }}>
-                          <Link to={`/app/sales/${sale.id}`}>
-                            <s-link>{sale.name}</s-link>
-                          </Link>
-                        </td>
-                        <td style={{ padding: "8px" }}>
-                          {formatDiscountType(sale.discountType, sale.discountValue)}
-                        </td>
-                        <td style={{ padding: "8px" }}>{sale.variants.length}</td>
-                        <td style={{ padding: "8px" }}>
-                          {new Date(sale.createdAt).toLocaleDateString()}
-                        </td>
-                        <td style={{ textAlign: "right", padding: "8px" }}>
-                          <Link to={`/app/sales/${sale.id}`}>
-                            <s-button variant="tertiary">View</s-button>
-                          </Link>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </s-box>
+              <s-table variant="auto">
+                <s-table-header>
+                  <s-table-header-row>
+                    <s-table-header>Name</s-table-header>
+                    <s-table-header>Discount</s-table-header>
+                    <s-table-header>Variants</s-table-header>
+                    <s-table-header>Created</s-table-header>
+                    <s-table-header>Actions</s-table-header>
+                  </s-table-header-row>
+                </s-table-header>
+                <s-table-body>
+                  {endedSales.map((sale) => (
+                    <s-table-row key={sale.id}>
+                      <s-table-cell>
+                        <Link to={`/app/sales/${sale.id}`}>
+                          <s-link>{sale.name}</s-link>
+                        </Link>
+                      </s-table-cell>
+                      <s-table-cell>
+                        {formatDiscountType(sale.discountType, sale.discountValue)}
+                      </s-table-cell>
+                      <s-table-cell>{sale.variants.length}</s-table-cell>
+                      <s-table-cell>
+                        {new Date(sale.createdAt).toLocaleDateString()}
+                      </s-table-cell>
+                      <s-table-cell>
+                        <Link to={`/app/sales/${sale.id}`}>
+                          <s-button variant="tertiary">View</s-button>
+                        </Link>
+                      </s-table-cell>
+                    </s-table-row>
+                  ))}
+                </s-table-body>
+              </s-table>
             </s-section>
           )}
         </>
