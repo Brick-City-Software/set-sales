@@ -4,7 +4,7 @@ import type {
   HeadersFunction,
   LoaderFunctionArgs,
 } from "react-router";
-import { useLoaderData, useFetcher, useNavigate, Link } from "react-router";
+import { useLoaderData, useFetcher, useNavigate, Link, useRouteError, isRouteErrorResponse } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
@@ -338,6 +338,27 @@ export default function SaleDetail() {
           </s-paragraph>
         </s-modal>
       )}
+    </s-page>
+  );
+}
+
+export function ErrorBoundary() {
+  const error = useRouteError();
+
+  return (
+    <s-page heading="Error Loading Sale">
+      <s-banner tone="critical">
+        <s-paragraph>
+          {isRouteErrorResponse(error)
+            ? `${error.status} ${error.statusText}`
+            : error instanceof Error
+            ? error.message
+            : "An unexpected error occurred"}
+        </s-paragraph>
+      </s-banner>
+      <Link to="/app/sales">
+        <s-button>Back to Sales</s-button>
+      </Link>
     </s-page>
   );
 }

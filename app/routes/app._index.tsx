@@ -1,5 +1,5 @@
 import type { LoaderFunctionArgs, HeadersFunction } from "react-router";
-import { useLoaderData, Link } from "react-router";
+import { useLoaderData, Link, useRouteError, isRouteErrorResponse } from "react-router";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import db from "../db.server";
@@ -169,6 +169,27 @@ export default function Dashboard() {
           </s-stack>
         </s-section>
       </s-stack>
+    </s-page>
+  );
+}
+
+export function ErrorBoundary() {
+  const error = useRouteError();
+
+  return (
+    <s-page heading="Error">
+      <s-banner tone="critical">
+        <s-paragraph>
+          {isRouteErrorResponse(error)
+            ? `${error.status} ${error.statusText}`
+            : error instanceof Error
+            ? error.message
+            : "An unexpected error occurred"}
+        </s-paragraph>
+      </s-banner>
+      <Link to="/app/sales">
+        <s-button>Go to Sales</s-button>
+      </Link>
     </s-page>
   );
 }
