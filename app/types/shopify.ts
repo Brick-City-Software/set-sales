@@ -18,6 +18,7 @@ export interface ShopifyVariant {
 export interface ShopifyProduct {
   id: string;
   title: string;
+  status: string;
   featuredImage: { url: string } | null;
   variants: {
     edges: Array<{
