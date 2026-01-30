@@ -4,7 +4,7 @@ import type {
   HeadersFunction,
   LoaderFunctionArgs,
 } from "react-router";
-import { useLoaderData, useFetcher, useNavigate, Link, useRouteError, isRouteErrorResponse } from "react-router";
+import { useLoaderData, useFetcher, useNavigate, Link, useRouteError, isRouteErrorResponse, useNavigation } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
@@ -153,11 +153,13 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 export default function SaleDetail() {
   const { sale } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
+  const navigation = useNavigation();
   const navigate = useNavigate();
   const shopify = useAppBridge();
   const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   const isEnding = fetcher.state !== "idle";
+  const isLoading = navigation.state === "loading";
 
   useEffect(() => {
     if (fetcher.data?.success) {
@@ -188,6 +190,17 @@ export default function SaleDetail() {
     0,
   );
   const totalSavings = totalOriginal - totalSale;
+
+  if (isLoading) {
+    return (
+      <s-page heading="Sale Details">
+        <s-skeleton-page>
+          <s-skeleton-display-text />
+          <s-skeleton-body-text lines={8} />
+        </s-skeleton-page>
+      </s-page>
+    );
+  }
 
   return (
     <s-page heading={sale.name}>

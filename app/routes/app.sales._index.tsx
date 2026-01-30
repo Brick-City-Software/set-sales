@@ -3,7 +3,7 @@ import type {
   HeadersFunction,
   LoaderFunctionArgs,
 } from "react-router";
-import { useLoaderData, useFetcher, Link, useRouteError, isRouteErrorResponse } from "react-router";
+import { useLoaderData, useFetcher, Link, useRouteError, isRouteErrorResponse, useNavigation } from "react-router";
 import { useEffect, useState } from "react";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
@@ -150,6 +150,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 export default function SalesIndex() {
   const { sales } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
+  const navigation = useNavigation();
   const shopify = useAppBridge();
   const [confirmEndSale, setConfirmEndSale] = useState<string | null>(null);
 
@@ -158,6 +159,7 @@ export default function SalesIndex() {
   const endedSales = sales.filter((s) => s.status === "ended");
 
   const isEnding = fetcher.state !== "idle";
+  const isLoading = navigation.state === "loading";
 
   useEffect(() => {
     if (fetcher.data?.success) {
@@ -181,6 +183,17 @@ export default function SalesIndex() {
       );
     }
   };
+
+  if (isLoading) {
+    return (
+      <s-page heading="Sales">
+        <s-skeleton-page>
+          <s-skeleton-display-text />
+          <s-skeleton-body-text lines={8} />
+        </s-skeleton-page>
+      </s-page>
+    );
+  }
 
   return (
     <s-page heading="Sales">
