@@ -283,12 +283,12 @@ export default function SaleDetail() {
                     </span>
                   </s-table-cell>
                   <s-table-cell>
-                    <strong style={{ color: "green" }}>
+                    <strong style={{ color: "var(--p-color-text-success)" }}>
                       ${salePrice.toFixed(2)}
                     </strong>
                   </s-table-cell>
                   <s-table-cell>
-                    <span style={{ color: "green" }}>${savings.toFixed(2)}</span>
+                    <span style={{ color: "var(--p-color-text-success)" }}>${savings.toFixed(2)}</span>
                   </s-table-cell>
                 </s-table-row>
               );
@@ -304,7 +304,7 @@ export default function SaleDetail() {
                 <strong>${totalSale.toFixed(2)}</strong>
               </s-table-cell>
               <s-table-cell>
-                <strong style={{ color: "green" }}>
+                <strong style={{ color: "var(--p-color-text-success)" }}>
                   ${totalSavings.toFixed(2)}
                 </strong>
               </s-table-cell>
