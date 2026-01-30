@@ -30,6 +30,7 @@ interface ProductVariant {
 interface Product {
   id: string;
   title: string;
+  status: string;
   featuredImage: { url: string } | null;
   variants: {
     edges: Array<{
@@ -83,6 +84,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           node {
             id
             title
+            status
             featuredImage {
               url
             }
@@ -111,8 +113,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const data = (await response.json()).data as ProductsResponse;
 
+  // Filter to only include ACTIVE products (exclude ARCHIVED and DRAFT)
+  const activeProducts = data.products.edges
+    .map((e) => e.node)
+    .filter((product) => product.status === "ACTIVE");
+
   return {
-    products: data.products.edges.map((e) => e.node),
+    products: activeProducts,
     pageInfo: data.products.pageInfo,
     search: search || "",
   };
