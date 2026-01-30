@@ -189,20 +189,33 @@ export default function SalesIndex() {
       </Link>
 
       {sales.length === 0 ? (
-        <s-section heading="No sales yet">
+        <s-empty-state
+          heading="Create your first sale"
+          image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
+        >
           <s-paragraph>
-            Create your first sale to start offering discounts to your
-            customers.
+            Put products on sale by adjusting prices and adding compare-at prices.
+            Track all your sales in one place.
           </s-paragraph>
-          <Link to="/app/sales/new">
-            <s-button>Create your first sale</s-button>
+          <Link to="/app/sales/new" slot="action">
+            <s-button variant="primary">Create Sale</s-button>
           </Link>
-        </s-section>
+        </s-empty-state>
       ) : (
         <>
           <s-section heading={`Active Sales (${activeSales.length})`}>
             {activeSales.length === 0 ? (
-              <s-paragraph>No active sales.</s-paragraph>
+              <s-empty-state
+                heading="No active sales"
+                image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
+              >
+                <s-paragraph>
+                  You don&apos;t have any active sales right now. Create a new sale to start offering discounts.
+                </s-paragraph>
+                <Link to="/app/sales/new" slot="action">
+                  <s-button variant="primary">Create Sale</s-button>
+                </Link>
+              </s-empty-state>
             ) : (
               <s-box>
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
