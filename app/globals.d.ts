@@ -7,5 +7,14 @@ declare namespace JSX {
       image?: string;
       children?: React.ReactNode;
     };
+    "s-skeleton-page": {
+      children?: React.ReactNode;
+    };
+    "s-skeleton-display-text": {
+      size?: "small" | "medium" | "large";
+    };
+    "s-skeleton-body-text": {
+      lines?: number;
+    };
   }
 }

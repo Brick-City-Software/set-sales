@@ -1,5 +1,5 @@
 import type { LoaderFunctionArgs, HeadersFunction } from "react-router";
-import { useLoaderData, Link, useRouteError, isRouteErrorResponse } from "react-router";
+import { useLoaderData, Link, useRouteError, isRouteErrorResponse, useNavigation } from "react-router";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import db from "../db.server";
@@ -50,6 +50,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
 export default function Dashboard() {
   const { stats, recentSales } = useLoaderData<typeof loader>();
+  const navigation = useNavigation();
+  const isLoading = navigation.state === "loading";
+
+  if (isLoading) {
+    return (
+      <s-page heading="Dashboard">
+        <s-skeleton-page>
+          <s-skeleton-display-text />
+          <s-skeleton-body-text lines={8} />
+        </s-skeleton-page>
+      </s-page>
+    );
+  }
 
   return (
     <s-page heading="Dashboard">
