@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import type {
   ActionFunctionArgs,
   HeadersFunction,
@@ -155,12 +155,14 @@ export default function SaleDetail() {
   const fetcher = useFetcher<typeof action>();
   const navigate = useNavigate();
   const shopify = useAppBridge();
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   const isEnding = fetcher.state !== "idle";
 
   useEffect(() => {
     if (fetcher.data?.success) {
       shopify.toast.show("Sale ended - prices restored");
+      setShowConfirmModal(false);
       navigate("/app/sales");
     }
     if (fetcher.data?.error) {
@@ -169,13 +171,11 @@ export default function SaleDetail() {
   }, [fetcher.data, shopify, navigate]);
 
   const handleEndSale = () => {
-    if (
-      confirm(
-        "Are you sure you want to end this sale? Original prices will be restored.",
-      )
-    ) {
-      fetcher.submit({ action: "end" }, { method: "POST" });
-    }
+    setShowConfirmModal(true);
+  };
+
+  const confirmEndSale = () => {
+    fetcher.submit({ action: "end" }, { method: "POST" });
   };
 
   // Calculate totals
@@ -323,6 +323,30 @@ export default function SaleDetail() {
           </s-paragraph>
         </s-stack>
       </s-section>
+
+      {showConfirmModal && (
+        <s-modal heading="End Sale">
+          <s-button
+            slot="primary-action"
+            variant="primary"
+            tone="critical"
+            onClick={confirmEndSale}
+            {...(isEnding ? { loading: true } : {})}
+          >
+            End Sale
+          </s-button>
+          <s-button
+            slot="secondary-actions"
+            onClick={() => setShowConfirmModal(false)}
+          >
+            Cancel
+          </s-button>
+          <s-paragraph>
+            Are you sure you want to end this sale? Original prices will be
+            restored.
+          </s-paragraph>
+        </s-modal>
+      )}
     </s-page>
   );
 }

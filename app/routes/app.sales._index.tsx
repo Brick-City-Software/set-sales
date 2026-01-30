@@ -4,7 +4,7 @@ import type {
   LoaderFunctionArgs,
 } from "react-router";
 import { useLoaderData, useFetcher, Link } from "react-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
@@ -151,6 +151,7 @@ export default function SalesIndex() {
   const { sales } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
   const shopify = useAppBridge();
+  const [confirmEndSale, setConfirmEndSale] = useState<string | null>(null);
 
   // Filter out pending sales (temporary state during creation)
   const activeSales = sales.filter((s) => s.status === "active");
@@ -161,6 +162,7 @@ export default function SalesIndex() {
   useEffect(() => {
     if (fetcher.data?.success) {
       shopify.toast.show("Sale ended - prices restored");
+      setConfirmEndSale(null);
     }
     if (fetcher.data?.error) {
       shopify.toast.show(fetcher.data.error);
@@ -168,9 +170,13 @@ export default function SalesIndex() {
   }, [fetcher.data, shopify]);
 
   const handleEndSale = (saleId: string) => {
-    if (confirm("Are you sure you want to end this sale? Original prices will be restored.")) {
+    setConfirmEndSale(saleId);
+  };
+
+  const confirmEndSaleAction = () => {
+    if (confirmEndSale) {
       fetcher.submit(
-        { action: "end", saleId },
+        { action: "end", saleId: confirmEndSale },
         { method: "POST" },
       );
     }
@@ -288,6 +294,30 @@ export default function SalesIndex() {
             </s-section>
           )}
         </>
+      )}
+
+      {confirmEndSale && (
+        <s-modal heading="End Sale">
+          <s-button
+            slot="primary-action"
+            variant="primary"
+            tone="critical"
+            onClick={confirmEndSaleAction}
+            {...(isEnding ? { loading: true } : {})}
+          >
+            End Sale
+          </s-button>
+          <s-button
+            slot="secondary-actions"
+            onClick={() => setConfirmEndSale(null)}
+          >
+            Cancel
+          </s-button>
+          <s-paragraph>
+            Are you sure you want to end this sale? Original prices will be
+            restored.
+          </s-paragraph>
+        </s-modal>
       )}
     </s-page>
   );
