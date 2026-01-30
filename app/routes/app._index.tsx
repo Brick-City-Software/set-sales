@@ -91,15 +91,18 @@ export default function Dashboard() {
         {/* Recent Sales */}
         <s-section heading="Recent Sales">
           {recentSales.length === 0 ? (
-            <s-stack gap="base">
+            <s-empty-state
+              heading="Create your first sale"
+              image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
+            >
               <s-paragraph>
-                You haven't created any sales yet. Create your first sale to
-                start offering discounts to your customers.
+                Put products on sale by adjusting prices and adding compare-at prices.
+                Track all your sales in one place.
               </s-paragraph>
-              <Link to="/app/sales/new">
-                <s-button>Create your first sale</s-button>
+              <Link to="/app/sales/new" slot="action">
+                <s-button variant="primary">Create Sale</s-button>
               </Link>
-            </s-stack>
+            </s-empty-state>
           ) : (
             <s-box>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
