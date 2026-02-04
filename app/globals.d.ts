@@ -16,5 +16,24 @@ declare namespace JSX {
     "s-skeleton-body-text": {
       lines?: number;
     };
+    "s-checkbox": {
+      id?: string;
+      checked?: boolean;
+      defaultChecked?: boolean;
+      indeterminate?: boolean;
+      label?: string;
+      disabled?: boolean;
+      error?: string;
+      onChange?: (event: Event) => void;
+      onInput?: (event: Event) => void;
+    };
+    "s-text": {
+      variant?: "headingXs" | "headingSm" | "headingMd" | "headingLg" | "headingXl" | "heading2xl" | "heading3xl" | "bodySm" | "bodyMd" | "bodyLg";
+      as?: string;
+      alignment?: "start" | "center" | "end" | "justify";
+      fontWeight?: "regular" | "medium" | "semibold" | "bold";
+      tone?: "base" | "subdued" | "success" | "critical" | "caution" | "info" | "magic" | "text-inverse";
+      children?: React.ReactNode;
+    };
   }
 }
