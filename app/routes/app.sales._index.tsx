@@ -3,7 +3,7 @@ import type {
   HeadersFunction,
   LoaderFunctionArgs,
 } from "react-router";
-import { useLoaderData, useFetcher, Link, useRouteError, isRouteErrorResponse, useNavigation } from "react-router";
+import { useLoaderData, useFetcher, Link, useRouteError, isRouteErrorResponse, useNavigation, useSearchParams, useSubmit } from "react-router";
 import { useEffect, useState } from "react";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
@@ -16,15 +16,44 @@ import { formatDate } from "../utils/date";
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
 
+  // Parse query parameters for filtering
+  const url = new URL(request.url);
+  const searchQuery = url.searchParams.get("search") || "";
+  const statusFilter = url.searchParams.get("status") || "";
+
+  // Build where clause with filters
+  const where: {
+    shop: string;
+    status?: string | { in: string[] };
+    name?: { contains: string; mode: "insensitive" };
+  } = {
+    shop: session.shop,
+  };
+
+  // Apply search filter (case-insensitive name search)
+  if (searchQuery) {
+    where.name = { contains: searchQuery, mode: "insensitive" };
+  }
+
+  // Apply status filter
+  if (statusFilter) {
+    const statuses = statusFilter.split(",");
+    if (statuses.length === 1) {
+      where.status = statuses[0];
+    } else {
+      where.status = { in: statuses };
+    }
+  }
+
   const sales = await db.sale.findMany({
-    where: { shop: session.shop },
+    where,
     include: {
       variants: true,
     },
     orderBy: { createdAt: "desc" },
   });
 
-  return { sales };
+  return { sales, searchQuery, statusFilter };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -299,13 +328,21 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function SalesIndex() {
-  const { sales } = useLoaderData<typeof loader>();
+  const { sales, searchQuery, statusFilter } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
   const navigation = useNavigation();
   const shopify = useAppBridge();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const submit = useSubmit();
+
   const [confirmEndSale, setConfirmEndSale] = useState<string | null>(null);
   const [selectedSales, setSelectedSales] = useState<string[]>([]);
   const [confirmBulkEnd, setConfirmBulkEnd] = useState(false);
+  const [localSearchValue, setLocalSearchValue] = useState(searchQuery);
+  const [showFilters, setShowFilters] = useState(false);
+
+  // Parse status filter into array
+  const selectedStatuses = statusFilter ? statusFilter.split(",") : [];
 
   // Filter out pending sales (temporary state during creation)
   const activeSales = sales.filter((s) => s.status === "active");
@@ -316,6 +353,9 @@ export default function SalesIndex() {
 
   const allSelected = activeSales.length > 0 && selectedSales.length === activeSales.length;
   const someSelected = selectedSales.length > 0 && selectedSales.length < activeSales.length;
+
+  // Has active filters
+  const hasFilters = searchQuery || statusFilter;
 
   useEffect(() => {
     if (fetcher.data?.success) {
@@ -366,6 +406,42 @@ export default function SalesIndex() {
     );
   };
 
+  const handleSearchChange = (value: string) => {
+    setLocalSearchValue(value);
+  };
+
+  const handleSearchSubmit = () => {
+    const params = new URLSearchParams(searchParams);
+    if (localSearchValue) {
+      params.set("search", localSearchValue);
+    } else {
+      params.delete("search");
+    }
+    setSearchParams(params);
+  };
+
+  const handleSearchClear = () => {
+    setLocalSearchValue("");
+    const params = new URLSearchParams(searchParams);
+    params.delete("search");
+    setSearchParams(params);
+  };
+
+  const handleStatusFilterChange = (selected: string[]) => {
+    const params = new URLSearchParams(searchParams);
+    if (selected.length > 0) {
+      params.set("status", selected.join(","));
+    } else {
+      params.delete("status");
+    }
+    setSearchParams(params);
+  };
+
+  const handleClearAllFilters = () => {
+    setLocalSearchValue("");
+    setSearchParams(new URLSearchParams());
+  };
+
   if (isLoading) {
     return (
       <s-page heading="Sales">
@@ -383,7 +459,7 @@ export default function SalesIndex() {
         <s-button>Create Sale</s-button>
       </Link>
 
-      {sales.length === 0 ? (
+      {sales.length === 0 && !hasFilters ? (
         <s-empty-state
           heading="Create your first sale"
           image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
@@ -398,7 +474,86 @@ export default function SalesIndex() {
         </s-empty-state>
       ) : (
         <>
-          <s-section heading={`Active Sales (${activeSales.length})`}>
+          <div style={{ marginBottom: "var(--p-space-400)" }}>
+            <s-stack direction="block" gap="base">
+              <s-stack direction="inline" gap="base">
+                <div style={{ flex: 1 }}>
+                  <s-text-field
+                    label="Search sales"
+                    labelAccessibilityVisibility="exclusive"
+                    placeholder="Search by sale name"
+                    value={localSearchValue}
+                    onInput={(e: Event) =>
+                      handleSearchChange((e.target as HTMLInputElement).value)
+                    }
+                  />
+                </div>
+                <s-button variant="secondary" onClick={handleSearchSubmit}>
+                  Search
+                </s-button>
+                {hasFilters && (
+                  <s-button variant="tertiary" onClick={handleClearAllFilters}>
+                    Clear filters
+                  </s-button>
+                )}
+                <s-button
+                  variant="tertiary"
+                  onClick={() => setShowFilters(!showFilters)}
+                >
+                  {showFilters ? "Hide" : "Show"} filters
+                </s-button>
+              </s-stack>
+
+              {showFilters && (
+                <s-stack direction="inline" gap="base">
+                  <div>
+                    <strong style={{ display: "block", marginBottom: "var(--p-space-200)" }}>
+                      Status
+                    </strong>
+                    <s-stack direction="block" gap="small-200">
+                      <s-checkbox
+                        id="filter-active"
+                        label="Active"
+                        checked={selectedStatuses.includes("active")}
+                        onChange={(e: Event) => {
+                          const checked = (e.target as HTMLInputElement).checked;
+                          const newStatuses = checked
+                            ? [...selectedStatuses, "active"]
+                            : selectedStatuses.filter((s) => s !== "active");
+                          handleStatusFilterChange(newStatuses);
+                        }}
+                      />
+                      <s-checkbox
+                        id="filter-ended"
+                        label="Ended"
+                        checked={selectedStatuses.includes("ended")}
+                        onChange={(e: Event) => {
+                          const checked = (e.target as HTMLInputElement).checked;
+                          const newStatuses = checked
+                            ? [...selectedStatuses, "ended"]
+                            : selectedStatuses.filter((s) => s !== "ended");
+                          handleStatusFilterChange(newStatuses);
+                        }}
+                      />
+                    </s-stack>
+                  </div>
+                </s-stack>
+              )}
+            </s-stack>
+          </div>
+
+          {sales.length === 0 ? (
+            <s-empty-state
+              heading="No sales found"
+              image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
+            >
+              <s-paragraph>
+                Try adjusting your search or filters to find what you&apos;re looking for.
+              </s-paragraph>
+            </s-empty-state>
+          ) : (
+            <>
+              <s-section heading={`Active Sales (${activeSales.length})`}>
             {activeSales.length === 0 ? (
               <s-empty-state
                 heading="No active sales"
@@ -543,6 +698,8 @@ export default function SalesIndex() {
                 </s-table-body>
               </s-table>
             </s-section>
+          )}
+            </>
           )}
         </>
       )}
