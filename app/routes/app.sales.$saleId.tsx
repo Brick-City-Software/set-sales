@@ -134,7 +134,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         data: { status: "ended" },
       });
 
-      return { success: true, message: "Sale ended successfully" };
+      return { success: true, message: "Sale ended successfully", saleId };
     } catch (error) {
       // On any error, try to revert status
       await db.sale.update({
@@ -144,6 +144,112 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       return {
         error:
           error instanceof Error ? error.message : "Failed to end sale",
+      };
+    }
+  }
+
+  // Undo end sale action (Issue #53)
+  if (action === "undoEnd") {
+    // Rate limiting for undo operations
+    const undoRateLimit = checkRateLimit(`${session.shop}:undo_sale`, {
+      maxRequests: 20,
+      windowMs: 60000, // 1 minute
+    });
+
+    if (!undoRateLimit.allowed) {
+      const resetIn = Math.ceil((undoRateLimit.resetAt - Date.now()) / 1000);
+      return {
+        error: `Too many requests. Please try again in ${resetIn} seconds.`,
+      };
+    }
+
+    const sale = await db.sale.findFirst({
+      where: { id: saleId, shop: session.shop },
+      include: { variants: true },
+    });
+
+    if (!sale) {
+      return { error: "Sale not found" };
+    }
+
+    // Can only undo recently ended sales
+    if (sale.status !== "ended") {
+      return { error: "Sale is not ended" };
+    }
+
+    try {
+      // Update status to "active" first
+      await db.sale.update({
+        where: { id: saleId },
+        data: { status: "active" },
+      });
+
+      // Group variants by product ID
+      const variantsByProduct = new Map<
+        string,
+        { id: string; price: string; compareAtPrice: string }[]
+      >();
+
+      for (const variant of sale.variants) {
+        const existing = variantsByProduct.get(variant.productId) || [];
+        existing.push({
+          id: variant.variantId,
+          price: variant.salePrice,
+          compareAtPrice: variant.originalPrice,
+        });
+        variantsByProduct.set(variant.productId, existing);
+      }
+
+      // Reapply sale prices for each product
+      const errors: string[] = [];
+      for (const [productId, variants] of variantsByProduct) {
+        const response = await admin.graphql(
+          `#graphql
+          mutation ReapplySalePrices($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+            productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+              productVariants {
+                id
+                price
+                compareAtPrice
+              }
+              userErrors {
+                field
+                message
+              }
+            }
+          }`,
+          {
+            variables: { productId, variants },
+          },
+        );
+
+        const result = await response.json();
+        const userErrors =
+          result.data?.productVariantsBulkUpdate?.userErrors || [];
+        if (userErrors.length > 0) {
+          errors.push(...userErrors.map((e: { message: string }) => e.message));
+        }
+      }
+
+      if (errors.length > 0) {
+        // Rollback: mark as ended again
+        await db.sale.update({
+          where: { id: saleId },
+          data: { status: "ended" },
+        });
+        return { error: `Failed to reapply sale prices: ${errors.join(", ")}` };
+      }
+
+      return { success: true, message: "Sale reactivated successfully", undone: true };
+    } catch (error) {
+      // On any error, try to revert status
+      await db.sale.update({
+        where: { id: saleId },
+        data: { status: "ended" },
+      });
+      return {
+        error:
+          error instanceof Error ? error.message : "Failed to undo end sale",
       };
     }
   }
@@ -164,14 +270,42 @@ export default function SaleDetail() {
 
   useEffect(() => {
     if (fetcher.data?.success) {
-      shopify.toast.show("Sale ended - prices restored");
-      setShowConfirmModal(false);
-      navigate("/app/sales");
+      const message = fetcher.data.message || "Sale ended - prices restored";
+
+      // If this was an undo action, just show success and stay on page
+      if (fetcher.data.undone) {
+        shopify.toast.show(message);
+        setShowConfirmModal(false);
+        return;
+      }
+
+      // For end sale action, show undo option (Issue #53)
+      if (fetcher.data.saleId) {
+        shopify.toast.show(message, {
+          duration: 5000,
+          action: "Undo",
+          onAction: () => {
+            fetcher.submit(
+              { action: "undoEnd" },
+              { method: "POST" }
+            );
+          },
+        });
+        setShowConfirmModal(false);
+        // Don't navigate away immediately - allow user to undo
+        setTimeout(() => {
+          navigate("/app/sales");
+        }, 5000);
+      } else {
+        shopify.toast.show(message);
+        setShowConfirmModal(false);
+        navigate("/app/sales");
+      }
     }
     if (fetcher.data?.error) {
       shopify.toast.show(fetcher.data.error);
     }
-  }, [fetcher.data, shopify, navigate]);
+  }, [fetcher.data, shopify, navigate, fetcher]);
 
   const handleEndSale = () => {
     setShowConfirmModal(true);

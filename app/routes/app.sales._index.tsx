@@ -194,16 +194,23 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     const successCount = results.filter((r) => r.success).length;
     const failureCount = results.filter((r) => !r.success).length;
+    const successfulSaleIds = results
+      .filter((r) => r.success)
+      .map((r) => r.saleId);
 
     if (successCount > 0 && failureCount === 0) {
       return {
         success: true,
         message: `Successfully ended ${successCount} sale${successCount > 1 ? "s" : ""}`,
+        saleIds: successfulSaleIds,
+        isBulk: true,
       };
     } else if (successCount > 0 && failureCount > 0) {
       return {
         success: true,
         message: `Ended ${successCount} sale${successCount > 1 ? "s" : ""}, but ${failureCount} failed`,
+        saleIds: successfulSaleIds,
+        isBulk: true,
       };
     } else {
       return { error: "Failed to end all selected sales" };
@@ -310,7 +317,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         data: { status: "ended" },
       });
 
-      return { success: true, message: "Sale ended successfully" };
+      return { success: true, message: "Sale ended successfully", saleId };
     } catch (error) {
       // On any error, try to revert status
       await db.sale.update({
@@ -320,6 +327,114 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return {
         error:
           error instanceof Error ? error.message : "Failed to end sale",
+      };
+    }
+  }
+
+  // Undo end sale action (Issue #53)
+  if (action === "undoEnd") {
+    const saleId = formData.get("saleId") as string;
+
+    // Rate limiting for undo operations
+    const rateLimit = checkRateLimit(`${session.shop}:undo_sale`, {
+      maxRequests: 20,
+      windowMs: 60000, // 1 minute
+    });
+
+    if (!rateLimit.allowed) {
+      const resetIn = Math.ceil((rateLimit.resetAt - Date.now()) / 1000);
+      return {
+        error: `Too many requests. Please try again in ${resetIn} seconds.`,
+      };
+    }
+
+    const sale = await db.sale.findFirst({
+      where: { id: saleId, shop: session.shop },
+      include: { variants: true },
+    });
+
+    if (!sale) {
+      return { error: "Sale not found" };
+    }
+
+    // Can only undo recently ended sales
+    if (sale.status !== "ended") {
+      return { error: "Sale is not ended" };
+    }
+
+    try {
+      // Update status to "active" first
+      await db.sale.update({
+        where: { id: saleId },
+        data: { status: "active" },
+      });
+
+      // Group variants by product ID
+      const variantsByProduct = new Map<
+        string,
+        { id: string; price: string; compareAtPrice: string }[]
+      >();
+
+      for (const variant of sale.variants) {
+        const existing = variantsByProduct.get(variant.productId) || [];
+        existing.push({
+          id: variant.variantId,
+          price: variant.salePrice,
+          compareAtPrice: variant.originalPrice,
+        });
+        variantsByProduct.set(variant.productId, existing);
+      }
+
+      // Reapply sale prices for each product
+      const errors: string[] = [];
+      for (const [productId, variants] of variantsByProduct) {
+        const response = await admin.graphql(
+          `#graphql
+          mutation ReapplySalePrices($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+            productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+              productVariants {
+                id
+                price
+                compareAtPrice
+              }
+              userErrors {
+                field
+                message
+              }
+            }
+          }`,
+          {
+            variables: { productId, variants },
+          },
+        );
+
+        const result = await response.json();
+        const userErrors =
+          result.data?.productVariantsBulkUpdate?.userErrors || [];
+        if (userErrors.length > 0) {
+          errors.push(...userErrors.map((e: { message: string }) => e.message));
+        }
+      }
+
+      if (errors.length > 0) {
+        // Rollback: mark as ended again
+        await db.sale.update({
+          where: { id: saleId },
+          data: { status: "ended" },
+        });
+        return { error: `Failed to reapply sale prices: ${errors.join(", ")}` };
+      }
+
+      return { success: true, message: "Sale reactivated successfully" };
+    } catch (error) {
+      // On any error, try to revert status
+      await db.sale.update({
+        where: { id: saleId },
+        data: { status: "ended" },
+      });
+      return {
+        error:
+          error instanceof Error ? error.message : "Failed to undo end sale",
       };
     }
   }
@@ -360,7 +475,40 @@ export default function SalesIndex() {
   useEffect(() => {
     if (fetcher.data?.success) {
       const message = fetcher.data.message || "Sale ended - prices restored";
-      shopify.toast.show(message);
+
+      // Show undo action for end sale operations (Issue #53)
+      if (fetcher.data.saleId && !fetcher.data.isBulk) {
+        const saleId = fetcher.data.saleId;
+        shopify.toast.show(message, {
+          duration: 5000,
+          action: "Undo",
+          onAction: () => {
+            fetcher.submit(
+              { action: "undoEnd", saleId },
+              { method: "POST" }
+            );
+          },
+        });
+      } else if (fetcher.data.saleIds && fetcher.data.isBulk && Array.isArray(fetcher.data.saleIds)) {
+        // For bulk operations, show undo for all successful sales
+        const saleIds = fetcher.data.saleIds;
+        shopify.toast.show(message, {
+          duration: 5000,
+          action: "Undo",
+          onAction: () => {
+            // Undo all successfully ended sales
+            saleIds.forEach((saleId: string) => {
+              fetcher.submit(
+                { action: "undoEnd", saleId },
+                { method: "POST" }
+              );
+            });
+          },
+        });
+      } else {
+        shopify.toast.show(message);
+      }
+
       setConfirmEndSale(null);
       setConfirmBulkEnd(false);
       setSelectedSales([]);
@@ -368,7 +516,7 @@ export default function SalesIndex() {
     if (fetcher.data?.error) {
       shopify.toast.show(fetcher.data.error);
     }
-  }, [fetcher.data, shopify]);
+  }, [fetcher.data, shopify, fetcher]);
 
   const handleEndSale = (saleId: string) => {
     setConfirmEndSale(saleId);
