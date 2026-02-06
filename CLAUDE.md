@@ -80,15 +80,13 @@ The app follows a modular structure with shared code:
 - Empty states use `<s-empty-state>` with Shopify illustrations
 - Loading states use `<s-skeleton-page>` components
 
-**Database**: Prisma with SQLite (`prisma/dev.sqlite`) for development. Models include:
+**Database**: Prisma with PostgreSQL. Database URL is configured via `DATABASE_URL` environment variable. Models include:
 - `Session` - Shopify OAuth tokens and shop data
 - `Sale` - Sale metadata (name, discount type/value, status: "pending"|"active"|"ended")
   - Indexes: `[shop]`, `[shop, status]`, `[shop, createdAt]`
 - `SaleVariant` - Original and sale prices for each variant in a sale
   - Indexes: `[variantId]`, `[productId]`
   - Unique constraint: `[saleId, variantId]`
-
-**Note**: SQLite is for development only. Production should use PostgreSQL or MySQL.
 
 ### Webhook Handling
 
@@ -100,11 +98,12 @@ Webhooks are automatically registered after OAuth in `auth.$.tsx` using `registe
 
 ### Environment Variables
 
-Required variables (provided automatically by `shopify app dev`):
-- `SHOPIFY_API_KEY` - App API key
-- `SHOPIFY_API_SECRET` - App secret
-- `SHOPIFY_APP_URL` - App URL (tunnel URL in dev)
-- `SCOPES` - Comma-separated OAuth scopes
+Required variables:
+- `DATABASE_URL` - PostgreSQL connection string (configured in .env file)
+- `SHOPIFY_API_KEY` - App API key (provided automatically by `shopify app dev`)
+- `SHOPIFY_API_SECRET` - App secret (provided automatically by `shopify app dev`)
+- `SHOPIFY_APP_URL` - App URL, tunnel URL in dev (provided automatically by `shopify app dev`)
+- `SCOPES` - Comma-separated OAuth scopes (provided automatically by `shopify app dev`)
 
 ## Embedded App Navigation
 

@@ -48,7 +48,7 @@ When a sale is ended, the app:
 
 - [React Router v7](https://reactrouter.com/) - Full-stack routing and data fetching
 - [Shopify App React Router](https://shopify.dev/docs/api/shopify-app-react-router) - Shopify authentication and API access
-- [Prisma](https://www.prisma.io/) - Database ORM (SQLite in dev, PostgreSQL recommended for production)
+- [Prisma](https://www.prisma.io/) - Database ORM with PostgreSQL
 - [Polaris Web Components](https://shopify.dev/docs/api/app-home/polaris-web-components) - Shopify design system components
 - [TypeScript](https://www.typescriptlang.org/) - Type-safe development
 - [Zod](https://zod.dev/) - Runtime schema validation
@@ -59,11 +59,26 @@ When a sale is ended, the app:
 
 - [Node.js](https://nodejs.org/) v20.19+ or v22.12+
 - [Shopify CLI](https://shopify.dev/docs/apps/tools/cli/getting-started)
+- [PostgreSQL](https://www.postgresql.org/) database (local or hosted service like Supabase)
 
 ### Setup
 
+1. **Install dependencies**:
 ```shell
 npm install
+```
+
+2. **Configure database**:
+```shell
+# Copy environment template
+cp .env.example .env
+
+# Edit .env and add your PostgreSQL connection string:
+# DATABASE_URL="postgresql://user:password@host:5432/database"
+```
+
+3. **Run database migrations**:
+```shell
 npm run setup
 ```
 

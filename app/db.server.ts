@@ -5,12 +5,12 @@ declare global {
   var prismaGlobal: PrismaClient;
 }
 
-if (process.env.NODE_ENV !== "production") {
-  if (!global.prismaGlobal) {
-    global.prismaGlobal = new PrismaClient();
-  }
-}
+const prisma = global.prismaGlobal ?? new PrismaClient({
+  log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
+});
 
-const prisma = global.prismaGlobal ?? new PrismaClient();
+if (process.env.NODE_ENV === "development") {
+  global.prismaGlobal = prisma;
+}
 
 export default prisma;
