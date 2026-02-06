@@ -404,6 +404,7 @@ export default function NewSale() {
     Map<string, { variantId: string; productId: string; originalPrice: string }>
   >(new Map());
   const [searchInput, setSearchInput] = useState(search);
+  const [showPreview, setShowPreview] = useState(false);
 
   const isSubmitting = fetcher.state !== "idle";
   const isLoading = navigation.state === "loading";
@@ -471,6 +472,11 @@ export default function NewSale() {
       return;
     }
 
+    // Show preview modal (Issue #55)
+    setShowPreview(true);
+  };
+
+  const confirmSubmit = () => {
     fetcher.submit(
       {
         name,
@@ -502,6 +508,39 @@ export default function NewSale() {
   const isApproachingLimit =
     selectedVariants.size > LIMITS.MAX_VARIANTS_PER_SALE * 0.8;
   const isOverLimit = selectedVariants.size > LIMITS.MAX_VARIANTS_PER_SALE;
+
+  // Calculate preview data (Issue #55)
+  const previewData = Array.from(selectedVariants.values()).map((v) => {
+    const originalPrice = parseFloat(v.originalPrice);
+    const salePrice = calculateSalePrice(
+      originalPrice,
+      discountType,
+      discountValueNum
+    );
+    return {
+      variantId: v.variantId,
+      productId: v.productId,
+      originalPrice,
+      salePrice,
+      savings: originalPrice - salePrice,
+    };
+  });
+
+  const totalSavings = previewData.reduce((sum, item) => sum + item.savings, 0);
+  const avgSavings = previewData.length > 0 ? totalSavings / previewData.length : 0;
+
+  // Group variants by product for preview display
+  const variantsByProduct = new Map<string, typeof previewData>();
+  for (const item of previewData) {
+    const existing = variantsByProduct.get(item.productId) || [];
+    existing.push(item);
+    variantsByProduct.set(item.productId, existing);
+  }
+
+  // Get product details for preview
+  const previewProducts = products.filter((p) =>
+    variantsByProduct.has(p.id)
+  );
 
   return (
     <s-page heading="Create Sale">
@@ -736,6 +775,110 @@ export default function NewSale() {
           </s-paragraph>
         </s-stack>
       </s-section>
+
+      {showPreview && (
+        <s-modal heading="Review Sale">
+          <s-button
+            slot="primary-action"
+            variant="primary"
+            onClick={confirmSubmit}
+            {...(isSubmitting ? { loading: true } : {})}
+          >
+            Create Sale
+          </s-button>
+          <s-button
+            slot="secondary-actions"
+            onClick={() => setShowPreview(false)}
+          >
+            Back to Edit
+          </s-button>
+
+          <s-stack direction="block" gap="base">
+            <s-banner>
+              <s-paragraph>
+                Review the changes below before creating the sale. Once created, prices will be updated immediately.
+              </s-paragraph>
+            </s-banner>
+
+            <s-section heading="Sale Summary">
+              <s-stack direction="block" gap="small-200">
+                <s-paragraph>
+                  <strong>Sale name:</strong> {name}
+                </s-paragraph>
+                <s-paragraph>
+                  <strong>Discount:</strong>{" "}
+                  {discountType === "percentage"
+                    ? `${discountValueNum}% off`
+                    : discountType === "fixed_amount"
+                      ? `$${discountValueNum.toFixed(2)} off`
+                      : `$${discountValueNum.toFixed(2)} fixed price`}
+                </s-paragraph>
+                <s-paragraph>
+                  <strong>Variants affected:</strong> {selectedVariants.size}
+                </s-paragraph>
+                <s-paragraph>
+                  <strong>Products affected:</strong> {variantsByProduct.size}
+                </s-paragraph>
+                <s-paragraph>
+                  <strong>Average savings per variant:</strong> ${avgSavings.toFixed(2)}
+                </s-paragraph>
+                <s-paragraph>
+                  <strong>Total savings (all variants):</strong> ${totalSavings.toFixed(2)}
+                </s-paragraph>
+              </s-stack>
+            </s-section>
+
+            <s-section heading="Price Changes">
+              <s-stack direction="block" gap="base">
+                {previewProducts.map((product) => {
+                  const productVariants = variantsByProduct.get(product.id) || [];
+                  return (
+                    <div key={product.id}>
+                      <s-paragraph>
+                        <strong>{product.title}</strong>
+                      </s-paragraph>
+                      <s-table variant="auto">
+                        <s-table-header>
+                          <s-table-header-row>
+                            <s-table-header>Variant</s-table-header>
+                            <s-table-header>Original Price</s-table-header>
+                            <s-table-header>Sale Price</s-table-header>
+                            <s-table-header>Savings</s-table-header>
+                          </s-table-header-row>
+                        </s-table-header>
+                        <s-table-body>
+                          {productVariants.map((variant) => {
+                            const variantNode = product.variants.edges.find(
+                              (e) => e.node.id === variant.variantId
+                            )?.node;
+                            return (
+                              <s-table-row key={variant.variantId}>
+                                <s-table-cell>
+                                  {variantNode?.title || "Default"}
+                                </s-table-cell>
+                                <s-table-cell>
+                                  ${variant.originalPrice.toFixed(2)}
+                                </s-table-cell>
+                                <s-table-cell>
+                                  ${variant.salePrice.toFixed(2)}
+                                </s-table-cell>
+                                <s-table-cell>
+                                  ${variant.savings.toFixed(2)} (
+                                  {((variant.savings / variant.originalPrice) * 100).toFixed(1)}%)
+                                </s-table-cell>
+                              </s-table-row>
+                            );
+                          })}
+                        </s-table-body>
+                      </s-table>
+                    </div>
+                  );
+                })}
+              </s-stack>
+            </s-section>
+          </s-stack>
+        </s-modal>
+      )}
     </s-page>
   );
 }
