@@ -337,7 +337,51 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return { error: `Failed to apply sale: ${errors.join(", ")}` };
   }
 
-  // Step 4: Mark sale as active after successful price application
+  // Step 4: Set metafields on products to indicate they're on sale (Issue #54)
+  const productIds = [...new Set(selectedVariants.map((v) => v.productId))];
+  const metafieldInputs = productIds.map((productId) => ({
+    ownerId: productId,
+    namespace: "set_sales",
+    key: "active_sale_id",
+    value: sale.id,
+    type: "single_line_text_field",
+  }));
+
+  try {
+    const metafieldResponse = await admin.graphql(
+      `#graphql
+      mutation UpdateProductMetafields($metafields: [MetafieldsSetInput!]!) {
+        metafieldsSet(metafields: $metafields) {
+          metafields {
+            id
+            namespace
+            key
+            value
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }`,
+      {
+        variables: { metafields: metafieldInputs },
+      },
+    );
+
+    const metafieldResult = await metafieldResponse.json();
+    const metafieldErrors = metafieldResult.data?.metafieldsSet?.userErrors || [];
+
+    // Log metafield errors but don't fail the sale creation
+    if (metafieldErrors.length > 0) {
+      console.error("Metafield update errors:", metafieldErrors);
+    }
+  } catch (error) {
+    // Log metafield errors but don't fail the sale creation
+    console.error("Failed to set metafields:", error);
+  }
+
+  // Step 5: Mark sale as active after successful price application
   await db.sale.update({
     where: { id: sale.id },
     data: { status: "active" },

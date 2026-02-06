@@ -128,6 +128,42 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         return { error: `Failed to restore prices: ${errors.join(", ")}` };
       }
 
+      // Remove metafields from products (Issue #54)
+      const productIds = [...new Set(sale.variants.map((v) => v.productId))];
+      const metafieldInputs = productIds.map((productId) => ({
+        ownerId: productId,
+        namespace: "set_sales",
+        key: "active_sale_id",
+        value: "",
+        type: "single_line_text_field",
+      }));
+
+      try {
+        await admin.graphql(
+          `#graphql
+          mutation UpdateProductMetafields($metafields: [MetafieldsSetInput!]!) {
+            metafieldsSet(metafields: $metafields) {
+              metafields {
+                id
+                namespace
+                key
+                value
+              }
+              userErrors {
+                field
+                message
+              }
+            }
+          }`,
+          {
+            variables: { metafields: metafieldInputs },
+          },
+        );
+      } catch (error) {
+        // Log metafield errors but don't fail the sale end
+        console.error("Failed to remove metafields:", error);
+      }
+
       // Finally update status to ended
       await db.sale.update({
         where: { id: saleId },
@@ -238,6 +274,42 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
           data: { status: "ended" },
         });
         return { error: `Failed to reapply sale prices: ${errors.join(", ")}` };
+      }
+
+      // Restore metafields on products (Issue #54)
+      const productIds = [...new Set(sale.variants.map((v) => v.productId))];
+      const metafieldInputs = productIds.map((productId) => ({
+        ownerId: productId,
+        namespace: "set_sales",
+        key: "active_sale_id",
+        value: saleId,
+        type: "single_line_text_field",
+      }));
+
+      try {
+        await admin.graphql(
+          `#graphql
+          mutation UpdateProductMetafields($metafields: [MetafieldsSetInput!]!) {
+            metafieldsSet(metafields: $metafields) {
+              metafields {
+                id
+                namespace
+                key
+                value
+              }
+              userErrors {
+                field
+                message
+              }
+            }
+          }`,
+          {
+            variables: { metafields: metafieldInputs },
+          },
+        );
+      } catch (error) {
+        // Log metafield errors but don't fail the undo
+        console.error("Failed to restore metafields:", error);
       }
 
       return { success: true, message: "Sale reactivated successfully", undone: true };
