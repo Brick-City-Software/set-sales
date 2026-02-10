@@ -28,6 +28,12 @@ A production-ready Shopify app that allows merchants to easily put products on s
 - **API Version Alignment**: Consistent API versions across webhooks and app code
 - **Variant Limits**: Support for up to 500 variants per sale with clear UI feedback
 
+### Monitoring & Observability
+- **Error Tracking**: Sentry integration for real-time error monitoring and debugging
+- **Performance Monitoring**: Track application performance and identify bottlenecks
+- **Source Maps**: Automatic source map upload for readable production stack traces
+- **Release Tracking**: Associate errors with specific code versions
+
 ## How It Works
 
 When a sale is applied, the app:
@@ -52,6 +58,7 @@ When a sale is ended, the app:
 - [Polaris Web Components](https://shopify.dev/docs/api/app-home/polaris-web-components) - Shopify design system components
 - [TypeScript](https://www.typescriptlang.org/) - Type-safe development
 - [Zod](https://zod.dev/) - Runtime schema validation
+- [Sentry](https://sentry.io/) - Error tracking and performance monitoring
 
 ## Development
 
@@ -68,13 +75,15 @@ When a sale is ended, the app:
 npm install
 ```
 
-2. **Configure database**:
+2. **Configure environment variables**:
 ```shell
 # Copy environment template
 cp .env.example .env
 
-# Edit .env and add your PostgreSQL connection string:
+# Edit .env and add required variables:
 # DATABASE_URL="postgresql://user:password@host:5432/database"
+# SENTRY_DSN="your-sentry-dsn"  # Optional for error tracking
+# SENTRY_AUTH_TOKEN="your-sentry-auth-token"  # Required for source map uploads
 ```
 
 3. **Run database migrations**:
@@ -173,7 +182,18 @@ npm run prisma migrate deploy
 - [Fly.io](https://fly.io/docs/js/shopify/)
 - [Render](https://render.com/docs/deploy-shopify-app)
 
-Set `NODE_ENV=production` in your environment variables.
+### Environment Variables
+
+Set the following environment variables in production:
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `NODE_ENV` | Yes | Set to `production` |
+| `DATABASE_URL` | Yes | PostgreSQL connection string |
+| `SENTRY_DSN` | No | Sentry project DSN for error tracking |
+| `SENTRY_AUTH_TOKEN` | Yes* | Auth token for source map uploads (* if using Sentry) |
+
+The Sentry Vite plugin will automatically upload source maps during build when `SENTRY_AUTH_TOKEN` is configured.
 
 ## Code Quality & Best Practices
 
@@ -247,10 +267,11 @@ The codebase follows Shopify's best practices and industry standards:
 - ✅ Comprehensive error handling
 - ✅ Date formatting standardization
 - ✅ Product filtering (active only)
+- ✅ Error tracking with Sentry
+- ✅ Performance monitoring
+- ✅ Source map uploads for production debugging
 
 ### Recommended Before Production 🔄
-- ⚠️ **Database Migration**: Switch from SQLite to PostgreSQL/MySQL
-- 💡 Consider adding analytics/telemetry
 - 💡 Consider implementing bulk actions
 - 💡 Consider adding search/filter functionality
 - 💡 Consider adding sale preview modal
