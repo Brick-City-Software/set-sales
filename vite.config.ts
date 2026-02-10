@@ -1,5 +1,6 @@
 import { reactRouter } from "@react-router/dev/vite";
 import { defineConfig, type UserConfig } from "vite";
+import { sentryVitePlugin } from "@sentry/vite-plugin";
 import tsconfigPaths from "vite-tsconfig-paths";
 
 // Related: https://github.com/remix-run/remix/issues/2835#issuecomment-1144102176
@@ -51,8 +52,14 @@ export default defineConfig({
   plugins: [
     reactRouter(),
     tsconfigPaths(),
+    sentryVitePlugin({
+      authToken: process.env.SENTRY_AUTH_TOKEN,
+      org: "brick-city-software",
+      project: "javascript-react",
+    }),
   ],
   build: {
+    sourcemap: true, // Source map generation must be turned on
     assetsInlineLimit: 0,
   },
   optimizeDeps: {

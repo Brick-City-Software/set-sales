@@ -30,6 +30,7 @@
     "@react-router/node": "^7.12.0",
     "@react-router/serve": "^7.12.0",
     "@sentry/react": "^10.38.0",
+    "@sentry/vite-plugin": "^4.9.1",
     "@shopify/app-bridge-react": "^4.2.4",
     "@shopify/shopify-app-react-router": "^1.1.0",
     "@shopify/shopify-app-session-storage-prisma": "^8.0.0",
