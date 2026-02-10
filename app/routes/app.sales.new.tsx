@@ -14,30 +14,10 @@ import { checkRateLimit } from "../utils/rateLimit";
 import { LIMITS } from "../constants/limits";
 import type {
   ShopifyProduct,
-  ShopifyVariant,
   ProductsResponse,
 } from "../types/shopify";
 import { PAGINATION } from "../constants/pagination";
 import { calculateSalePrice } from "../utils/pricing";
-
-interface ProductVariant {
-  id: string;
-  title: string;
-  price: string;
-  compareAtPrice: string | null;
-}
-
-interface Product {
-  id: string;
-  title: string;
-  status: string;
-  featuredImage: { url: string } | null;
-  variants: {
-    edges: Array<{
-      node: ProductVariant;
-    }>;
-  };
-}
 
 // Validation schemas
 const LoaderParamsSchema = z.object({

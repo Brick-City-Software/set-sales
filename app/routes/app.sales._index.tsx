@@ -3,7 +3,7 @@ import type {
   HeadersFunction,
   LoaderFunctionArgs,
 } from "react-router";
-import { useLoaderData, useFetcher, Link, useRouteError, isRouteErrorResponse, useNavigation, useSearchParams, useSubmit } from "react-router";
+import { useLoaderData, useFetcher, Link, useRouteError, isRouteErrorResponse, useNavigation, useSearchParams } from "react-router";
 import { useEffect, useState } from "react";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
@@ -556,7 +556,6 @@ export default function SalesIndex() {
   const navigation = useNavigation();
   const shopify = useAppBridge();
   const [searchParams, setSearchParams] = useSearchParams();
-  const submit = useSubmit();
 
   const [confirmEndSale, setConfirmEndSale] = useState<string | null>(null);
   const [selectedSales, setSelectedSales] = useState<string[]>([]);
@@ -673,13 +672,6 @@ export default function SalesIndex() {
     } else {
       params.delete("search");
     }
-    setSearchParams(params);
-  };
-
-  const handleSearchClear = () => {
-    setLocalSearchValue("");
-    const params = new URLSearchParams(searchParams);
-    params.delete("search");
     setSearchParams(params);
   };
 
