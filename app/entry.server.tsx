@@ -4,7 +4,12 @@ import { ServerRouter } from "react-router";
 import { createReadableStreamFromReadable } from "@react-router/node";
 import { type EntryContext } from "react-router";
 import { isbot } from "isbot";
+import * as Sentry from "@sentry/react";
 import { addDocumentResponseHeaders } from "./shopify.server";
+import { initSentryServer } from "./sentry.server";
+
+// Initialize Sentry on server startup
+initSentryServer();
 
 export const streamTimeout = 5000;
 
@@ -24,7 +29,7 @@ export default async function handleRequest(
       "script-src 'self' 'unsafe-inline' cdn.shopify.com",
       "style-src 'self' 'unsafe-inline' cdn.shopify.com",
       "img-src 'self' data: https:",
-      "connect-src 'self' *.shopify.com *.shopifycdn.com",
+      "connect-src 'self' *.shopify.com *.shopifycdn.com *.ingest.us.sentry.io",
       "frame-ancestors 'self' https://*.myshopify.com https://admin.shopify.com",
       "font-src 'self' data:",
     ].join("; ")
@@ -56,10 +61,28 @@ export default async function handleRequest(
           pipe(body);
         },
         onShellError(error) {
+          // Capture shell errors in Sentry
+          Sentry.captureException(error, {
+            tags: {
+              type: "shell_error",
+            },
+            extra: {
+              url: request.url,
+            },
+          });
           reject(error);
         },
         onError(error) {
           responseStatusCode = 500;
+          // Capture render errors in Sentry
+          Sentry.captureException(error, {
+            tags: {
+              type: "render_error",
+            },
+            extra: {
+              url: request.url,
+            },
+          });
           // Only log full errors in development (Issue #34)
           if (process.env.NODE_ENV === "production") {
             console.error("Render error occurred", {
