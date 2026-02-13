@@ -6,12 +6,14 @@ import type {
 } from "react-router";
 import { useLoaderData, useFetcher, useNavigate, Link, useRouteError, isRouteErrorResponse, useNavigation } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
+import * as Sentry from "@sentry/react";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import db from "../db.server";
 import { checkRateLimit } from "../utils/rateLimit";
 import { formatDiscountType } from "../utils/pricing";
 import { formatDate } from "../utils/date";
+import { trackEvent, trackError } from "../utils/analytics";
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -42,6 +44,15 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
   if (!rateLimit.allowed) {
     const resetIn = Math.ceil((rateLimit.resetAt - Date.now()) / 1000);
+
+    trackEvent({
+      name: "rate_limit_exceeded",
+      properties: {
+        operation: "end_sale",
+        reset_in_seconds: resetIn,
+      },
+    });
+
     return {
       error: `Too many requests. Please try again in ${resetIn} seconds.`,
     };
@@ -125,6 +136,15 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
           where: { id: saleId },
           data: { status: sale.status },
         });
+
+        trackEvent({
+          name: "sale_end_failed",
+          properties: {
+            error_type: "shopify_api_error",
+            sale_id: saleId ?? "",
+          },
+        });
+
         return { error: `Failed to restore prices: ${errors.join(", ")}` };
       }
 
@@ -170,6 +190,15 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         data: { status: "ended" },
       });
 
+      // Track successful sale end
+      trackEvent({
+        name: "sale_ended",
+        properties: {
+          sale_id: saleId ?? "",
+          variant_count: sale.variants.length,
+        },
+      });
+
       return { success: true, message: "Sale ended successfully", saleId };
     } catch (error) {
       // On any error, try to revert status
@@ -177,6 +206,12 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         where: { id: saleId },
         data: { status: sale.status },
       });
+
+      trackError(error, {
+        operation: "end_sale",
+        sale_id: saleId ?? "",
+      });
+
       return {
         error:
           error instanceof Error ? error.message : "Failed to end sale",
@@ -384,7 +419,18 @@ export default function SaleDetail() {
   };
 
   const confirmEndSale = () => {
-    fetcher.submit({ action: "end" }, { method: "POST" });
+    Sentry.startSpan(
+      {
+        op: "ui.click",
+        name: "End Sale Confirm",
+      },
+      (span) => {
+        span.setAttribute("sale_id", sale.id);
+        span.setAttribute("variant_count", sale.variants.length);
+
+        fetcher.submit({ action: "end" }, { method: "POST" });
+      },
+    );
   };
 
   // Calculate totals
@@ -564,6 +610,10 @@ export default function SaleDetail() {
 
 export function ErrorBoundary() {
   const error = useRouteError();
+
+  if (error instanceof Error) {
+    trackError(error, { operation: "sale_detail_route" });
+  }
 
   return (
     <s-page heading="Error Loading Sale">

@@ -18,6 +18,8 @@ import type {
 } from "../types/shopify";
 import { PAGINATION } from "../constants/pagination";
 import { calculateSalePrice } from "../utils/pricing";
+import * as Sentry from "@sentry/react";
+import { trackEvent, trackError, trackPerformance } from "../utils/analytics";
 
 // Validation schemas
 const LoaderParamsSchema = z.object({
@@ -153,6 +155,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   if (!rateLimit.allowed) {
     const resetIn = Math.ceil((rateLimit.resetAt - Date.now()) / 1000);
+
+    // Track rate limit exceeded
+    trackEvent({
+      name: "rate_limit_exceeded",
+      properties: {
+        operation: "sale_creation",
+        reset_in_seconds: resetIn,
+      },
+    });
+
     return {
       error: `Too many requests. Please try again in ${resetIn} seconds.`,
     };
@@ -282,38 +294,65 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   // Step 2: Apply sale prices via GraphQL
   const errors: string[] = [];
-  for (const [productId, variants] of variantsByProduct) {
-    const response = await admin.graphql(
-      `#graphql
-      mutation ApplySalePrices($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
-        productVariantsBulkUpdate(productId: $productId, variants: $variants) {
-          productVariants {
-            id
-            price
-            compareAtPrice
-          }
-          userErrors {
-            field
-            message
+  try {
+    await trackPerformance(
+      "apply_sale_prices",
+      async () => {
+        for (const [productId, variants] of variantsByProduct) {
+          const response = await admin.graphql(
+            `#graphql
+            mutation ApplySalePrices($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+              productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+                productVariants {
+                  id
+                  price
+                  compareAtPrice
+                }
+                userErrors {
+                  field
+                  message
+                }
+              }
+            }`,
+            {
+              variables: { productId, variants },
+            },
+          );
+
+          const result = await response.json();
+          const userErrors = result.data?.productVariantsBulkUpdate?.userErrors || [];
+          if (userErrors.length > 0) {
+            errors.push(...userErrors.map((e: { message: string }) => e.message));
           }
         }
-      }`,
+      },
       {
-        variables: { productId, variants },
+        variant_count: selectedVariants.length,
+        product_count: variantsByProduct.size,
       },
     );
-
-    const result = await response.json();
-    const userErrors = result.data?.productVariantsBulkUpdate?.userErrors || [];
-    if (userErrors.length > 0) {
-      errors.push(...userErrors.map((e: { message: string }) => e.message));
-    }
+  } catch (error) {
+    trackError(error, {
+      operation: "apply_sale_prices",
+      variant_count: selectedVariants.length,
+    });
+    throw error;
   }
 
   // Step 3: Handle success or failure
   if (errors.length > 0) {
     // Rollback: Delete the sale from database since Shopify update failed
     await db.sale.delete({ where: { id: sale.id } });
+
+    // Track sale creation failure
+    trackEvent({
+      name: "sale_creation_failed",
+      properties: {
+        error_type: "shopify_api_error",
+        variant_count: selectedVariants.length,
+      },
+    });
+
     return { error: `Failed to apply sale: ${errors.join(", ")}` };
   }
 
@@ -365,6 +404,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   await db.sale.update({
     where: { id: sale.id },
     data: { status: "active" },
+  });
+
+  // Track successful sale creation
+  trackEvent({
+    name: "sale_created",
+    properties: {
+      variant_count: selectedVariants.length,
+      discount_type: discountType,
+      discount_value: discountValue,
+    },
   });
 
   return { success: true, saleId: sale.id };
@@ -457,18 +506,41 @@ export default function NewSale() {
   };
 
   const confirmSubmit = () => {
-    fetcher.submit(
+    Sentry.startSpan(
       {
-        name,
-        discountType,
-        discountValue,
-        selectedVariants: JSON.stringify(Array.from(selectedVariants.values())),
+        op: "ui.click",
+        name: "Create Sale Submit",
       },
-      { method: "POST" },
+      (span) => {
+        span.setAttribute("variant_count", selectedVariants.size);
+        span.setAttribute("discount_type", discountType);
+
+        fetcher.submit(
+          {
+            name,
+            discountType,
+            discountValue,
+            selectedVariants: JSON.stringify(
+              Array.from(selectedVariants.values()),
+            ),
+          },
+          { method: "POST" },
+        );
+      },
     );
   };
 
   const handleSearch = () => {
+    Sentry.startSpan({ op: "ui.click", name: "Product Search" }, () => {
+      trackEvent({
+        name: "product_searched",
+        properties: {
+          query: searchInput || "",
+          result_count: products.length,
+        },
+      });
+    });
+
     const params = new URLSearchParams();
     if (searchInput) params.set("search", searchInput);
     navigate(`/app/sales/new?${params.toString()}`);
@@ -865,6 +937,10 @@ export default function NewSale() {
 
 export function ErrorBoundary() {
   const error = useRouteError();
+
+  if (error instanceof Error) {
+    trackError(error, { operation: "new_sale_route" });
+  }
 
   return (
     <s-page heading="Error Creating Sale">

@@ -6,12 +6,14 @@ import type {
 import { useLoaderData, useFetcher, Link, useRouteError, isRouteErrorResponse, useNavigation, useSearchParams } from "react-router";
 import { useEffect, useState } from "react";
 import { useAppBridge } from "@shopify/app-bridge-react";
+import * as Sentry from "@sentry/react";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import db from "../db.server";
 import { checkRateLimit } from "../utils/rateLimit";
 import { formatDiscountType } from "../utils/pricing";
 import { formatDate } from "../utils/date";
+import { trackEvent, trackError } from "../utils/analytics";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -235,6 +237,18 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       .map((r) => r.saleId);
 
     if (successCount > 0 && failureCount === 0) {
+      // Track bulk sale end success
+      const totalVariantsEnded = activeSalesToEnd
+        .filter((s) => results.find((r) => r.saleId === s.id && r.success))
+        .reduce((sum, s) => sum + s.variants.length, 0);
+      trackEvent({
+        name: "sale_ended",
+        properties: {
+          sale_id: `bulk:${successCount}`,
+          variant_count: totalVariantsEnded,
+        },
+      });
+
       return {
         success: true,
         message: `Successfully ended ${successCount} sale${successCount > 1 ? "s" : ""}`,
@@ -655,9 +669,19 @@ export default function SalesIndex() {
   };
 
   const confirmBulkEndAction = () => {
-    fetcher.submit(
-      { action: "endBulk", saleIds: JSON.stringify(selectedSales) },
-      { method: "POST" }
+    Sentry.startSpan(
+      {
+        op: "ui.click",
+        name: "Bulk End Sales Confirm",
+      },
+      (span) => {
+        span.setAttribute("sale_count", selectedSales.length);
+
+        fetcher.submit(
+          { action: "endBulk", saleIds: JSON.stringify(selectedSales) },
+          { method: "POST" }
+        );
+      },
     );
   };
 
@@ -1005,6 +1029,10 @@ export default function SalesIndex() {
 
 export function ErrorBoundary() {
   const error = useRouteError();
+
+  if (error instanceof Error) {
+    trackError(error, { operation: "sales_index_route" });
+  }
 
   return (
     <s-page heading="Error Loading Sales">
