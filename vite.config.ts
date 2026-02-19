@@ -56,10 +56,13 @@ export default defineConfig({
       authToken: process.env.SENTRY_AUTH_TOKEN,
       org: "brick-city-software",
       project: "javascript-react",
+      sourcemaps: {
+        disable: true,
+      },
     }),
   ],
   build: {
-    sourcemap: true, // Source map generation must be turned on
+    sourcemap: false,
     assetsInlineLimit: 0,
   },
   optimizeDeps: {
