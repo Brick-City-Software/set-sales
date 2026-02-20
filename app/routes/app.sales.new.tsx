@@ -618,6 +618,11 @@ export default function NewSale() {
       >
         Create Sale ({selectedVariants.size} variants)
       </s-button>
+      <div style={{ padding: "8px" }}>
+        <button type="button" onClick={handleSubmit} style={{ padding: "8px 16px", background: "#008060", color: "white", border: "none", borderRadius: "4px", cursor: "pointer" }}>
+          Create Sale (debug) ({selectedVariants.size} variants)
+        </button>
+      </div>
 
       {isApproachingLimit && (
         <s-banner tone={isOverLimit ? "critical" : "warning"}>
