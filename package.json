@@ -71,8 +71,7 @@
     "@shopify/plugin-cloudflare"
   ],
   "overrides": {
-    "p-map": "^4.0.0",
-    "minimatch": "^10.2.1"
+    "p-map": "^4.0.0"
   },
   "author": "btsullivan"
 }

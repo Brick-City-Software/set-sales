@@ -828,8 +828,7 @@ export default function NewSale() {
         </s-stack>
       </s-section>
 
-      {showPreview && (
-        <s-modal heading="Review Sale">
+      <s-modal heading="Review Sale" {...(showPreview ? { open: true } : {})}>
           <s-button
             slot="primary-action"
             variant="primary"
@@ -930,7 +929,6 @@ export default function NewSale() {
             </s-section>
           </s-stack>
         </s-modal>
-      )}
     </s-page>
   );
 }
