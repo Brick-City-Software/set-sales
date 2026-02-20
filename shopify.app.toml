@@ -2,7 +2,7 @@
 
 client_id = "198c86d5daaaa6a1ff39e1f06b513ba9"
 name = "set-sales"
-application_url = "https://www.setsales.com"
+application_url = "https://www.setsales.app"
 embedded = true
 
 [build]
