@@ -434,7 +434,7 @@ export default function NewSale() {
   >(new Map());
   const [searchInput, setSearchInput] = useState(search);
   const pageRef = useRef<HTMLElement>(null);
-  const modalRef = useRef<HTMLElement & { show: () => void; hide: () => void }>(null);
+  const modalRef = useRef<HTMLElement & { showOverlay: () => void; hideOverlay: () => void }>(null);
 
   const isSubmitting = fetcher.state !== "idle";
   const isLoading = navigation.state === "loading";
@@ -503,7 +503,7 @@ export default function NewSale() {
       return;
     }
 
-    modalRef.current?.show();
+    modalRef.current?.showOverlay();
   }, [name, selectedVariants, shopify]);
 
   useEffect(() => {
@@ -855,7 +855,7 @@ export default function NewSale() {
           </s-button>
           <s-button
             slot="secondary-actions"
-            onClick={() => modalRef.current?.hide()}
+            onClick={() => modalRef.current?.hideOverlay()}
           >
             Back to Edit
           </s-button>
