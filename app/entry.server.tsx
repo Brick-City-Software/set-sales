@@ -31,7 +31,7 @@ export default async function handleRequest(
       "img-src 'self' data: https:",
       "connect-src 'self' *.shopify.com *.shopifycdn.com *.ingest.us.sentry.io",
       "frame-ancestors 'self' https://*.myshopify.com https://admin.shopify.com",
-      "font-src 'self' data:",
+      "font-src 'self' data: cdn.shopify.com",
     ].join("; ")
   );
 
