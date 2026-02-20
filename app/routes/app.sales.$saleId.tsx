@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type {
   ActionFunctionArgs,
   HeadersFunction,
@@ -370,7 +370,7 @@ export default function SaleDetail() {
   const navigation = useNavigation();
   const navigate = useNavigate();
   const shopify = useAppBridge();
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const confirmModalRef = useRef<HTMLElement & { showOverlay: () => void; hideOverlay: () => void }>(null);
 
   const isEnding = fetcher.state !== "idle";
   const isLoading = navigation.state === "loading";
@@ -382,7 +382,7 @@ export default function SaleDetail() {
       // If this was an undo action, just show success and stay on page
       if (fetcher.data.undone) {
         shopify.toast.show(message);
-        setShowConfirmModal(false);
+        confirmModalRef.current?.hideOverlay();
         return;
       }
 
@@ -398,14 +398,14 @@ export default function SaleDetail() {
             );
           },
         });
-        setShowConfirmModal(false);
+        confirmModalRef.current?.hideOverlay();
         // Don't navigate away immediately - allow user to undo
         setTimeout(() => {
           navigate("/app/sales");
         }, 5000);
       } else {
         shopify.toast.show(message);
-        setShowConfirmModal(false);
+        confirmModalRef.current?.hideOverlay();
         navigate("/app/sales");
       }
     }
@@ -415,7 +415,7 @@ export default function SaleDetail() {
   }, [fetcher.data, shopify, navigate, fetcher]);
 
   const handleEndSale = () => {
-    setShowConfirmModal(true);
+    confirmModalRef.current?.showOverlay();
   };
 
   const confirmEndSale = () => {
@@ -581,8 +581,7 @@ export default function SaleDetail() {
         </s-stack>
       </s-section>
 
-      {showConfirmModal && (
-        <s-modal heading="End Sale">
+      <s-modal ref={confirmModalRef as any} heading="End Sale">
           <s-button
             slot="primary-action"
             variant="primary"
@@ -594,7 +593,7 @@ export default function SaleDetail() {
           </s-button>
           <s-button
             slot="secondary-actions"
-            onClick={() => setShowConfirmModal(false)}
+            onClick={() => confirmModalRef.current?.hideOverlay()}
           >
             Cancel
           </s-button>
@@ -603,7 +602,6 @@ export default function SaleDetail() {
             restored.
           </s-paragraph>
         </s-modal>
-      )}
     </s-page>
   );
 }

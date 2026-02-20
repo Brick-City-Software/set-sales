@@ -4,7 +4,7 @@ import type {
   LoaderFunctionArgs,
 } from "react-router";
 import { useLoaderData, useFetcher, Link, useRouteError, isRouteErrorResponse, useNavigation, useSearchParams } from "react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import * as Sentry from "@sentry/react";
 import { authenticate } from "../shopify.server";
@@ -573,7 +573,8 @@ export default function SalesIndex() {
 
   const [confirmEndSale, setConfirmEndSale] = useState<string | null>(null);
   const [selectedSales, setSelectedSales] = useState<string[]>([]);
-  const [confirmBulkEnd, setConfirmBulkEnd] = useState(false);
+  const confirmEndModalRef = useRef<HTMLElement & { showOverlay: () => void; hideOverlay: () => void }>(null);
+  const confirmBulkModalRef = useRef<HTMLElement & { showOverlay: () => void; hideOverlay: () => void }>(null);
   const [localSearchValue, setLocalSearchValue] = useState(searchQuery);
   const [showFilters, setShowFilters] = useState(false);
 
@@ -631,7 +632,8 @@ export default function SalesIndex() {
       }
 
       setConfirmEndSale(null);
-      setConfirmBulkEnd(false);
+      confirmEndModalRef.current?.hideOverlay();
+      confirmBulkModalRef.current?.hideOverlay();
       setSelectedSales([]);
     }
     if (fetcher.data?.error) {
@@ -641,6 +643,7 @@ export default function SalesIndex() {
 
   const handleEndSale = (saleId: string) => {
     setConfirmEndSale(saleId);
+    confirmEndModalRef.current?.showOverlay();
   };
 
   const confirmEndSaleAction = () => {
@@ -665,7 +668,7 @@ export default function SalesIndex() {
   };
 
   const handleBulkEndSales = () => {
-    setConfirmBulkEnd(true);
+    confirmBulkModalRef.current?.showOverlay();
   };
 
   const confirmBulkEndAction = () => {
@@ -974,8 +977,7 @@ export default function SalesIndex() {
         </>
       )}
 
-      {confirmEndSale && (
-        <s-modal heading="End Sale">
+      <s-modal ref={confirmEndModalRef as any} heading="End Sale">
           <s-button
             slot="primary-action"
             variant="primary"
@@ -987,7 +989,7 @@ export default function SalesIndex() {
           </s-button>
           <s-button
             slot="secondary-actions"
-            onClick={() => setConfirmEndSale(null)}
+            onClick={() => { setConfirmEndSale(null); confirmEndModalRef.current?.hideOverlay(); }}
           >
             Cancel
           </s-button>
@@ -996,9 +998,7 @@ export default function SalesIndex() {
             restored.
           </s-paragraph>
         </s-modal>
-      )}
-      {confirmBulkEnd && (
-        <s-modal heading={`End ${selectedSales.length} Sale${selectedSales.length > 1 ? "s" : ""}`}>
+      <s-modal ref={confirmBulkModalRef as any} heading={`End ${selectedSales.length} Sale${selectedSales.length > 1 ? "s" : ""}`}>
           <s-button
             slot="primary-action"
             variant="primary"
@@ -1010,7 +1010,7 @@ export default function SalesIndex() {
           </s-button>
           <s-button
             slot="secondary-actions"
-            onClick={() => setConfirmBulkEnd(false)}
+            onClick={() => confirmBulkModalRef.current?.hideOverlay()}
           >
             Cancel
           </s-button>
@@ -1019,7 +1019,6 @@ export default function SalesIndex() {
             restored for all selected sales.
           </s-paragraph>
         </s-modal>
-      )}
     </s-page>
   );
 }
