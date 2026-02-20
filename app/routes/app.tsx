@@ -10,10 +10,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   // Gate all app routes behind an active subscription
   await billing.require({
-    plans: [MONTHLY_PLAN],
+    plans: [MONTHLY_PLAN] as any,
     onFailure: async () =>
       billing.request({
-        plan: MONTHLY_PLAN,
+        plan: MONTHLY_PLAN as any,
         isTest: process.env.NODE_ENV !== "production",
         returnUrl: `${process.env.SHOPIFY_APP_URL}/app`,
       }),

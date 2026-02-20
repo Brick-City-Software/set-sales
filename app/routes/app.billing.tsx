@@ -7,7 +7,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { billing } = await authenticate.admin(request);
 
   const { hasActivePayment, appSubscriptions } = await billing.check({
-    plans: [MONTHLY_PLAN],
+    plans: [MONTHLY_PLAN] as any,
     isTest: process.env.NODE_ENV !== "production",
   });
 
@@ -32,7 +32,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   if (intent === "subscribe") {
     await billing.request({
-      plan: MONTHLY_PLAN,
+      plan: MONTHLY_PLAN as any,
       isTest: process.env.NODE_ENV !== "production",
       returnUrl: `${process.env.SHOPIFY_APP_URL}/app/billing`,
     });
@@ -73,7 +73,7 @@ export default function BillingPage() {
       <s-stack gap="large">
         <s-section heading="Set Sales Monthly Plan">
           <s-stack gap="base">
-            <s-stack direction="inline" gap="base" align="center">
+            <s-stack direction="inline" gap="base" alignItems="center">
               <div style={{ fontSize: "32px", fontWeight: "bold" }}>$4.99</div>
               <div style={{ color: "var(--p-color-text-subdued)" }}>
                 per month
@@ -81,17 +81,17 @@ export default function BillingPage() {
               {hasActivePayment ? (
                 <s-badge tone="success">Active</s-badge>
               ) : (
-                <s-badge tone="attention">Inactive</s-badge>
+                <s-badge tone="caution">Inactive</s-badge>
               )}
             </s-stack>
 
-            <s-list>
+            <ul style={{ paddingLeft: "20px", margin: 0 }}>
               <s-list-item>14-day free trial — no charge until trial ends</s-list-item>
               <s-list-item>Put any products on sale with percentage, fixed amount, or fixed price discounts</s-list-item>
               <s-list-item>Automatically set compare-at prices so customers see the original price</s-list-item>
               <s-list-item>Track all active and ended sales in one place</s-list-item>
               <s-list-item>Up to 500 variants per sale</s-list-item>
-            </s-list>
+            </ul>
 
             {hasActivePayment ? (
               <s-stack gap="base">

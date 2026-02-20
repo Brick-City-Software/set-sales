@@ -521,6 +521,30 @@ export default function NewSale() {
     };
   }, [handleSubmit]);
 
+  // Attach native listeners to modal's slotted buttons
+  useEffect(() => {
+    let cleanupConfirm: (() => void) | undefined;
+    let cleanupBack: (() => void) | undefined;
+    const timer = setTimeout(() => {
+      const modal = modalRef.current;
+      if (!modal) return;
+      const confirmBtn = modal.querySelector('[slot="primary-action"]');
+      const backBtn = modal.querySelector('[slot="secondary-actions"]');
+      if (confirmBtn) {
+        const handler = () => confirmSubmit();
+        confirmBtn.addEventListener("click", handler);
+        cleanupConfirm = () => confirmBtn.removeEventListener("click", handler);
+      }
+      if (backBtn) {
+        const handler = () => modalRef.current?.hideOverlay();
+        backBtn.addEventListener("click", handler);
+        cleanupBack = () => backBtn.removeEventListener("click", handler);
+      }
+    }, 500);
+    return () => { clearTimeout(timer); cleanupConfirm?.(); cleanupBack?.(); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const confirmSubmit = () => {
     Sentry.startSpan(
       {
