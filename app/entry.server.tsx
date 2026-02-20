@@ -32,6 +32,7 @@ export default async function handleRequest(
       "connect-src 'self' *.shopify.com *.shopifycdn.com *.ingest.us.sentry.io",
       "frame-ancestors 'self' https://*.myshopify.com https://admin.shopify.com",
       "font-src 'self' data: cdn.shopify.com",
+      "worker-src 'self' blob:",
     ].join("; ")
   );
 
