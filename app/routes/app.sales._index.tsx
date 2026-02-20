@@ -727,9 +727,7 @@ export default function SalesIndex() {
 
   return (
     <s-page heading="Sales">
-      <Link to="/app/sales/new" slot="primary-action">
-        <s-button>Create Sale</s-button>
-      </Link>
+      <s-button slot="primary-action" variant="primary" url="/app/sales/new">Create Sale</s-button>
 
       {sales.length === 0 && !hasFilters ? (
         <s-empty-state

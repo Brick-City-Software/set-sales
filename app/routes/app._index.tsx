@@ -67,9 +67,7 @@ export default function Dashboard() {
 
   return (
     <s-page heading="Dashboard">
-      <Link to="/app/sales/new" slot="primary-action">
-        <s-button>Create Sale</s-button>
-      </Link>
+      <s-button slot="primary-action" variant="primary" url="/app/sales/new">Create Sale</s-button>
 
       <s-stack gap="large">
         {/* Statistics Cards */}
