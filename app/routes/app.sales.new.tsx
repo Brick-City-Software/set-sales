@@ -511,11 +511,17 @@ export default function NewSale() {
   handleSubmitRef.current = handleSubmit;
 
   useEffect(() => {
-    const sBtn = pageRef.current?.querySelector('[slot="primary-action"]');
-    if (!sBtn) return;
-    const handler = () => createSaleBtnRef.current?.click();
-    sBtn.addEventListener("click", handler);
-    return () => sBtn.removeEventListener("click", handler);
+    const attach = () => {
+      const sBtn = pageRef.current?.querySelector('[slot="primary-action"]');
+      console.log("primary-action button found:", sBtn);
+      if (!sBtn) return;
+      const handler = () => createSaleBtnRef.current?.click();
+      sBtn.addEventListener("click", handler);
+      return () => sBtn.removeEventListener("click", handler);
+    };
+    // Delay to allow web component to finish rendering
+    const timer = setTimeout(attach, 500);
+    return () => clearTimeout(timer);
   }, []);
 
   const confirmSubmit = () => {
