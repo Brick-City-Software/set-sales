@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import type {
   ActionFunctionArgs,
   HeadersFunction,
@@ -494,7 +494,8 @@ export default function NewSale() {
     });
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = useCallback(() => {
+    console.log("handleSubmit called", { name, selectedVariants: selectedVariants.size });
     if (!name.trim()) {
       shopify.toast.show("Please enter a sale name");
       return;
@@ -506,7 +507,7 @@ export default function NewSale() {
 
     // Show preview modal (Issue #55)
     setShowPreview(true);
-  };
+  }, [name, selectedVariants, shopify]);
   handleSubmitRef.current = handleSubmit;
 
   useEffect(() => {
@@ -611,6 +612,7 @@ export default function NewSale() {
       <s-button
         slot="primary-action"
         variant="primary"
+        onClick={handleSubmit}
         {...(isSubmitting ? { loading: true } : {})}
         {...(isOverLimit ? { disabled: true } : {})}
       >
