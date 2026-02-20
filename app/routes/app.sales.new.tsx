@@ -496,7 +496,6 @@ export default function NewSale() {
   };
 
   const handleSubmit = useCallback(() => {
-    console.log("handleSubmit called", { name, selectedVariants: selectedVariants.size });
     if (!name.trim()) {
       shopify.toast.show("Please enter a sale name");
       return;
@@ -843,7 +842,8 @@ export default function NewSale() {
         </s-stack>
       </s-section>
 
-      <s-modal heading="Review Sale" {...(showPreview ? { open: true } : {})}>
+      {showPreview && (
+        <s-modal heading="Review Sale">
           <s-button
             slot="primary-action"
             variant="primary"
@@ -944,6 +944,7 @@ export default function NewSale() {
             </s-section>
           </s-stack>
         </s-modal>
+      )}
     </s-page>
   );
 }
