@@ -435,6 +435,7 @@ export default function NewSale() {
   const [searchInput, setSearchInput] = useState(search);
   const [showPreview, setShowPreview] = useState(false);
   const pageRef = useRef<HTMLElement>(null);
+  const createSaleBtnRef = useRef<HTMLButtonElement>(null);
   const handleSubmitRef = useRef<() => void>(() => {});
 
   const isSubmitting = fetcher.state !== "idle";
@@ -511,11 +512,11 @@ export default function NewSale() {
   handleSubmitRef.current = handleSubmit;
 
   useEffect(() => {
-    const btn = pageRef.current?.querySelector('[slot="primary-action"]');
-    if (!btn) return;
-    const handler = () => handleSubmitRef.current();
-    btn.addEventListener("click", handler);
-    return () => btn.removeEventListener("click", handler);
+    const sBtn = pageRef.current?.querySelector('[slot="primary-action"]');
+    if (!sBtn) return;
+    const handler = () => createSaleBtnRef.current?.click();
+    sBtn.addEventListener("click", handler);
+    return () => sBtn.removeEventListener("click", handler);
   }, []);
 
   const confirmSubmit = () => {
@@ -618,11 +619,7 @@ export default function NewSale() {
       >
         Create Sale ({selectedVariants.size} variants)
       </s-button>
-      <div style={{ padding: "8px" }}>
-        <button type="button" onClick={handleSubmit} style={{ padding: "8px 16px", background: "#008060", color: "white", border: "none", borderRadius: "4px", cursor: "pointer" }}>
-          Create Sale (debug) ({selectedVariants.size} variants)
-        </button>
-      </div>
+      <button ref={createSaleBtnRef} type="button" onClick={handleSubmit} style={{ display: "none" }} aria-hidden="true" />
 
       {isApproachingLimit && (
         <s-banner tone={isOverLimit ? "critical" : "warning"}>
