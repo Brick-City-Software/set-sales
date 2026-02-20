@@ -15,6 +15,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       billing.request({
         plan: MONTHLY_PLAN,
         isTest: process.env.NODE_ENV !== "production",
+        returnUrl: `${process.env.SHOPIFY_APP_URL}/app`,
       }),
   });
 
