@@ -511,17 +511,22 @@ export default function NewSale() {
   handleSubmitRef.current = handleSubmit;
 
   useEffect(() => {
-    const attach = () => {
+    let cleanup: (() => void) | undefined;
+    const timer = setTimeout(() => {
       const sBtn = pageRef.current?.querySelector('[slot="primary-action"]');
       console.log("primary-action button found:", sBtn);
       if (!sBtn) return;
-      const handler = () => createSaleBtnRef.current?.click();
+      const handler = () => {
+        console.log("s-button clicked, triggering native button", createSaleBtnRef.current);
+        createSaleBtnRef.current?.click();
+      };
       sBtn.addEventListener("click", handler);
-      return () => sBtn.removeEventListener("click", handler);
+      cleanup = () => sBtn.removeEventListener("click", handler);
+    }, 500);
+    return () => {
+      clearTimeout(timer);
+      cleanup?.();
     };
-    // Delay to allow web component to finish rendering
-    const timer = setTimeout(attach, 500);
-    return () => clearTimeout(timer);
   }, []);
 
   const confirmSubmit = () => {
