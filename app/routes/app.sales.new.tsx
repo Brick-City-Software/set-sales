@@ -505,7 +505,7 @@ export default function NewSale() {
       return;
     }
 
-    // Show preview modal (Issue #55)
+    console.log("setting showPreview to true");
     setShowPreview(true);
   }, [name, selectedVariants, shopify]);
   handleSubmitRef.current = handleSubmit;
@@ -618,6 +618,7 @@ export default function NewSale() {
     variantsByProduct.has(p.id)
   );
 
+  console.log("render: showPreview =", showPreview);
   return (
     <s-page ref={pageRef} heading="Create Sale">
       <s-button
