@@ -178,7 +178,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   try {
     parsedVariants = JSON.parse(selectedVariantsJson);
-  } catch (error) {
+  } catch {
     return { error: "Invalid variant data format" };
   }
 

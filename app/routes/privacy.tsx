@@ -9,8 +9,8 @@ export default function PrivacyPolicy() {
       <p style={{ color: "#6d7175", marginBottom: "40px" }}>Last updated: February 18, 2026</p>
 
       <p style={{ marginBottom: "24px" }}>
-        This Privacy Policy describes how Brick City Software ("we", "us", or "our") collects, uses, and
-        handles information when you use the Set Sales app ("the App") for Shopify.
+        This Privacy Policy describes how Brick City Software (&quot;we&quot;, &quot;us&quot;, or &quot;our&quot;) collects, uses, and
+        handles information when you use the Set Sales app (&quot;the App&quot;) for Shopify.
       </p>
 
       <h2 style={{ fontSize: "20px", fontWeight: "600", marginTop: "40px", marginBottom: "12px" }}>Information We Collect</h2>
@@ -33,7 +33,7 @@ export default function PrivacyPolicy() {
       </ul>
       <p style={{ marginBottom: "24px" }}>
         <strong>We do not collect any customer data.</strong> The App does not access, store, or process any
-        personally identifiable information about your store's customers, including names, email addresses,
+        personally identifiable information about your store&apos;s customers, including names, email addresses,
         phone numbers, or order history.
       </p>
 
@@ -53,7 +53,7 @@ export default function PrivacyPolicy() {
       <ul style={{ paddingLeft: "24px", marginBottom: "24px" }}>
         <li style={{ marginBottom: "8px" }}>
           <strong>Shopify:</strong> The App operates within the Shopify platform and is subject to
-          Shopify's <a href="https://www.shopify.com/legal/privacy" style={{ color: "#2c6ecb" }}>Privacy Policy</a>.
+          Shopify&apos;s <a href="https://www.shopify.com/legal/privacy" style={{ color: "#2c6ecb" }}>Privacy Policy</a>.
         </li>
         <li style={{ marginBottom: "8px" }}>
           <strong>Error monitoring:</strong> We use Sentry to capture application errors and performance data.
@@ -64,16 +64,16 @@ export default function PrivacyPolicy() {
 
       <h2 style={{ fontSize: "20px", fontWeight: "600", marginTop: "40px", marginBottom: "12px" }}>Data Retention</h2>
       <p style={{ marginBottom: "24px" }}>
-        We retain your shop's data for as long as the App is installed on your store. If you uninstall the App,
+        We retain your shop&apos;s data for as long as the App is installed on your store. If you uninstall the App,
         your sale history and session data are deleted from our systems within 48 hours in accordance with
-        Shopify's GDPR compliance requirements.
+        Shopify&apos;s GDPR compliance requirements.
       </p>
 
       <h2 style={{ fontSize: "20px", fontWeight: "600", marginTop: "40px", marginBottom: "12px" }}>Your Rights</h2>
       <p style={{ marginBottom: "12px" }}>You have the right to:</p>
       <ul style={{ paddingLeft: "24px", marginBottom: "24px" }}>
         <li style={{ marginBottom: "8px" }}>Request access to the data we hold about your store</li>
-        <li style={{ marginBottom: "8px" }}>Request deletion of your store's data by uninstalling the App or contacting us directly</li>
+        <li style={{ marginBottom: "8px" }}>Request deletion of your store&apos;s data by uninstalling the App or contacting us directly</li>
         <li style={{ marginBottom: "8px" }}>Request a copy of your data in a portable format</li>
       </ul>
 

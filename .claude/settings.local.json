@@ -4,7 +4,8 @@
       "Bash(gh issue view:*)",
       "mcp__shopify-dev-mcp__learn_shopify_api",
       "mcp__shopify-dev-mcp__search_docs_chunks",
-      "mcp__shopify-dev-mcp__fetch_full_docs"
+      "mcp__shopify-dev-mcp__fetch_full_docs",
+      "Bash(npm audit:*)"
     ]
   },
   "enableAllProjectMcpServers": true,
