@@ -581,7 +581,8 @@ export default function SaleDetail() {
         </s-stack>
       </s-section>
 
-      <s-modal heading="End Sale" {...(showConfirmModal ? { open: true } : {})}>
+      {showConfirmModal && (
+        <s-modal heading="End Sale">
           <s-button
             slot="primary-action"
             variant="primary"
@@ -602,6 +603,7 @@ export default function SaleDetail() {
             restored.
           </s-paragraph>
         </s-modal>
+      )}
     </s-page>
   );
 }

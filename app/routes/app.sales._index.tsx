@@ -974,7 +974,8 @@ export default function SalesIndex() {
         </>
       )}
 
-      <s-modal heading="End Sale" {...(confirmEndSale ? { open: true } : {})}>
+      {confirmEndSale && (
+        <s-modal heading="End Sale">
           <s-button
             slot="primary-action"
             variant="primary"
@@ -995,8 +996,9 @@ export default function SalesIndex() {
             restored.
           </s-paragraph>
         </s-modal>
-
-      <s-modal heading={`End ${selectedSales.length} Sale${selectedSales.length > 1 ? "s" : ""}`} {...(confirmBulkEnd ? { open: true } : {})}>
+      )}
+      {confirmBulkEnd && (
+        <s-modal heading={`End ${selectedSales.length} Sale${selectedSales.length > 1 ? "s" : ""}`}>
           <s-button
             slot="primary-action"
             variant="primary"
@@ -1017,6 +1019,7 @@ export default function SalesIndex() {
             restored for all selected sales.
           </s-paragraph>
         </s-modal>
+      )}
     </s-page>
   );
 }
