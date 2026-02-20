@@ -434,7 +434,7 @@ export default function NewSale() {
   >(new Map());
   const [searchInput, setSearchInput] = useState(search);
   const [showPreview, setShowPreview] = useState(false);
-  const createSaleBtnRef = useRef<HTMLElement>(null);
+  const pageRef = useRef<HTMLElement>(null);
   const handleSubmitRef = useRef<() => void>(() => {});
 
   const isSubmitting = fetcher.state !== "idle";
@@ -510,7 +510,7 @@ export default function NewSale() {
   handleSubmitRef.current = handleSubmit;
 
   useEffect(() => {
-    const btn = createSaleBtnRef.current;
+    const btn = pageRef.current?.querySelector('[slot="primary-action"]');
     if (!btn) return;
     const handler = () => handleSubmitRef.current();
     btn.addEventListener("click", handler);
@@ -607,9 +607,8 @@ export default function NewSale() {
   );
 
   return (
-    <s-page heading="Create Sale">
+    <s-page ref={pageRef} heading="Create Sale">
       <s-button
-        ref={createSaleBtnRef}
         slot="primary-action"
         variant="primary"
         {...(isSubmitting ? { loading: true } : {})}
