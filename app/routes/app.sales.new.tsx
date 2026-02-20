@@ -433,10 +433,8 @@ export default function NewSale() {
     Map<string, { variantId: string; productId: string; originalPrice: string }>
   >(new Map());
   const [searchInput, setSearchInput] = useState(search);
-  const [showPreview, setShowPreview] = useState(false);
   const pageRef = useRef<HTMLElement>(null);
-  const createSaleBtnRef = useRef<HTMLButtonElement>(null);
-  const handleSubmitRef = useRef<() => void>(() => {});
+  const modalRef = useRef<HTMLElement & { show: () => void; hide: () => void }>(null);
 
   const isSubmitting = fetcher.state !== "idle";
   const isLoading = navigation.state === "loading";
@@ -505,21 +503,15 @@ export default function NewSale() {
       return;
     }
 
-    console.log("setting showPreview to true");
-    setShowPreview(true);
+    modalRef.current?.show();
   }, [name, selectedVariants, shopify]);
-  handleSubmitRef.current = handleSubmit;
 
   useEffect(() => {
     let cleanup: (() => void) | undefined;
     const timer = setTimeout(() => {
       const sBtn = pageRef.current?.querySelector('[slot="primary-action"]');
-      console.log("primary-action button found:", sBtn);
       if (!sBtn) return;
-      const handler = () => {
-        console.log("s-button clicked, triggering native button", createSaleBtnRef.current);
-        createSaleBtnRef.current?.click();
-      };
+      const handler = () => handleSubmit();
       sBtn.addEventListener("click", handler);
       cleanup = () => sBtn.removeEventListener("click", handler);
     }, 500);
@@ -527,7 +519,7 @@ export default function NewSale() {
       clearTimeout(timer);
       cleanup?.();
     };
-  }, []);
+  }, [handleSubmit]);
 
   const confirmSubmit = () => {
     Sentry.startSpan(
@@ -618,9 +610,8 @@ export default function NewSale() {
     variantsByProduct.has(p.id)
   );
 
-  console.log("render: showPreview =", showPreview);
   return (
-    <s-page ref={pageRef} heading="Create Sale">
+    <s-page ref={pageRef as any} heading="Create Sale">
       <s-button
         slot="primary-action"
         variant="primary"
@@ -630,7 +621,6 @@ export default function NewSale() {
       >
         Create Sale ({selectedVariants.size} variants)
       </s-button>
-      <button ref={createSaleBtnRef} type="button" onClick={handleSubmit} style={{ display: "none" }} aria-hidden="true" />
 
       {isApproachingLimit && (
         <s-banner tone={isOverLimit ? "critical" : "warning"}>
@@ -854,8 +844,7 @@ export default function NewSale() {
         </s-stack>
       </s-section>
 
-      {showPreview && (
-        <s-modal heading="Review Sale">
+      <s-modal ref={modalRef as any} heading="Review Sale">
           <s-button
             slot="primary-action"
             variant="primary"
@@ -866,7 +855,7 @@ export default function NewSale() {
           </s-button>
           <s-button
             slot="secondary-actions"
-            onClick={() => setShowPreview(false)}
+            onClick={() => modalRef.current?.hide()}
           >
             Back to Edit
           </s-button>
@@ -956,7 +945,6 @@ export default function NewSale() {
             </s-section>
           </s-stack>
         </s-modal>
-      )}
     </s-page>
   );
 }
