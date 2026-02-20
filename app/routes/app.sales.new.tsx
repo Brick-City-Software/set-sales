@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import type {
   ActionFunctionArgs,
   HeadersFunction,
@@ -434,6 +434,8 @@ export default function NewSale() {
   >(new Map());
   const [searchInput, setSearchInput] = useState(search);
   const [showPreview, setShowPreview] = useState(false);
+  const createSaleBtnRef = useRef<HTMLElement>(null);
+  const handleSubmitRef = useRef<() => void>(() => {});
 
   const isSubmitting = fetcher.state !== "idle";
   const isLoading = navigation.state === "loading";
@@ -447,6 +449,7 @@ export default function NewSale() {
       shopify.toast.show(fetcher.data.error);
     }
   }, [fetcher.data, shopify, navigate]);
+
 
   const toggleVariant = (
     variantId: string,
@@ -504,6 +507,15 @@ export default function NewSale() {
     // Show preview modal (Issue #55)
     setShowPreview(true);
   };
+  handleSubmitRef.current = handleSubmit;
+
+  useEffect(() => {
+    const btn = createSaleBtnRef.current;
+    if (!btn) return;
+    const handler = () => handleSubmitRef.current();
+    btn.addEventListener("click", handler);
+    return () => btn.removeEventListener("click", handler);
+  }, []);
 
   const confirmSubmit = () => {
     Sentry.startSpan(
@@ -597,9 +609,9 @@ export default function NewSale() {
   return (
     <s-page heading="Create Sale">
       <s-button
+        ref={createSaleBtnRef}
         slot="primary-action"
         variant="primary"
-        onClick={handleSubmit}
         {...(isSubmitting ? { loading: true } : {})}
         {...(isOverLimit ? { disabled: true } : {})}
       >
