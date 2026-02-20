@@ -4,7 +4,7 @@ import type {
   LoaderFunctionArgs,
 } from "react-router";
 import { useLoaderData, useFetcher, Link, useRouteError, isRouteErrorResponse, useNavigation, useSearchParams } from "react-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import * as Sentry from "@sentry/react";
 import { authenticate } from "../shopify.server";
@@ -688,61 +688,6 @@ export default function SalesIndex() {
     );
   };
 
-  // Attach native listeners to confirmation modal slotted buttons
-  // (React onClick doesn't fire on slot="primary-action" / slot="secondary-actions")
-  const confirmEndSaleRef = useRef(confirmEndSale);
-  confirmEndSaleRef.current = confirmEndSale;
-
-  useEffect(() => {
-    let cleanupConfirm: (() => void) | undefined;
-    let cleanupCancel: (() => void) | undefined;
-    const timer = setTimeout(() => {
-      const modal = confirmEndModalRef.current;
-      if (!modal) return;
-      const confirmBtn = modal.querySelector('[slot="primary-action"]');
-      const cancelBtn = modal.querySelector('[slot="secondary-actions"]');
-      if (confirmBtn) {
-        const handler = () => {
-          if (confirmEndSaleRef.current) {
-            fetcher.submit({ action: "end", saleId: confirmEndSaleRef.current }, { method: "POST" });
-          }
-        };
-        confirmBtn.addEventListener("click", handler);
-        cleanupConfirm = () => confirmBtn.removeEventListener("click", handler);
-      }
-      if (cancelBtn) {
-        const handler = () => { setConfirmEndSale(null); confirmEndModalRef.current?.hideOverlay(); };
-        cancelBtn.addEventListener("click", handler);
-        cleanupCancel = () => cancelBtn.removeEventListener("click", handler);
-      }
-    }, 500);
-    return () => { clearTimeout(timer); cleanupConfirm?.(); cleanupCancel?.(); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    let cleanupConfirm: (() => void) | undefined;
-    let cleanupCancel: (() => void) | undefined;
-    const timer = setTimeout(() => {
-      const modal = confirmBulkModalRef.current;
-      if (!modal) return;
-      const confirmBtn = modal.querySelector('[slot="primary-action"]');
-      const cancelBtn = modal.querySelector('[slot="secondary-actions"]');
-      if (confirmBtn) {
-        const handler = () => confirmBulkEndAction();
-        confirmBtn.addEventListener("click", handler);
-        cleanupConfirm = () => confirmBtn.removeEventListener("click", handler);
-      }
-      if (cancelBtn) {
-        const handler = () => confirmBulkModalRef.current?.hideOverlay();
-        cancelBtn.addEventListener("click", handler);
-        cleanupCancel = () => cancelBtn.removeEventListener("click", handler);
-      }
-    }, 500);
-    return () => { clearTimeout(timer); cleanupConfirm?.(); cleanupCancel?.(); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   const handleSearchChange = (value: string) => {
     setLocalSearchValue(value);
   };
@@ -1039,14 +984,14 @@ export default function SalesIndex() {
             slot="primary-action"
             variant="primary"
             tone="critical"
-            onClick={confirmEndSaleAction}
+            ref={(el: HTMLElement | null) => { if (el) el.onclick = () => confirmEndSaleAction(); }}
             {...(isEnding ? { loading: true } : {})}
           >
             End Sale
           </s-button>
           <s-button
             slot="secondary-actions"
-            onClick={() => { setConfirmEndSale(null); confirmEndModalRef.current?.hideOverlay(); }}
+            ref={(el: HTMLElement | null) => { if (el) el.onclick = () => { setConfirmEndSale(null); confirmEndModalRef.current?.hideOverlay(); }; }}
           >
             Cancel
           </s-button>
@@ -1060,14 +1005,14 @@ export default function SalesIndex() {
             slot="primary-action"
             variant="primary"
             tone="critical"
-            onClick={confirmBulkEndAction}
+            ref={(el: HTMLElement | null) => { if (el) el.onclick = () => confirmBulkEndAction(); }}
             {...(isEnding ? { loading: true } : {})}
           >
             End {selectedSales.length} Sale{selectedSales.length > 1 ? "s" : ""}
           </s-button>
           <s-button
             slot="secondary-actions"
-            onClick={() => confirmBulkModalRef.current?.hideOverlay()}
+            ref={(el: HTMLElement | null) => { if (el) el.onclick = () => confirmBulkModalRef.current?.hideOverlay(); }}
           >
             Cancel
           </s-button>

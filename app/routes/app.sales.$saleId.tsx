@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type {
   ActionFunctionArgs,
   HeadersFunction,
@@ -370,7 +370,6 @@ export default function SaleDetail() {
   const navigation = useNavigation();
   const navigate = useNavigate();
   const shopify = useAppBridge();
-  const pageRef = useRef<HTMLElement>(null);
   const confirmModalRef = useRef<HTMLElement & { showOverlay: () => void; hideOverlay: () => void }>(null);
 
   const isEnding = fetcher.state !== "idle";
@@ -415,52 +414,9 @@ export default function SaleDetail() {
     }
   }, [fetcher.data, shopify, navigate, fetcher]);
 
-  const handleEndSale = useCallback(() => {
+  const handleEndSale = () => {
     confirmModalRef.current?.showOverlay();
-  }, []);
-
-  useEffect(() => {
-    let cleanup: (() => void) | undefined;
-    const timer = setTimeout(() => {
-      const primaryBtn = pageRef.current?.querySelector('[slot="primary-action"]');
-      if (!primaryBtn) return;
-      const handler = () => handleEndSale();
-      primaryBtn.addEventListener("click", handler);
-      cleanup = () => primaryBtn.removeEventListener("click", handler);
-    }, 500);
-    return () => {
-      clearTimeout(timer);
-      cleanup?.();
-    };
-  }, [handleEndSale]);
-
-  // Attach native listeners to modal's slotted buttons (React onClick doesn't fire on slotted web component buttons)
-  useEffect(() => {
-    let cleanupConfirm: (() => void) | undefined;
-    let cleanupCancel: (() => void) | undefined;
-    const timer = setTimeout(() => {
-      const modal = confirmModalRef.current;
-      if (!modal) return;
-      const confirmBtn = modal.querySelector('[slot="primary-action"]');
-      const cancelBtn = modal.querySelector('[slot="secondary-actions"]');
-      if (confirmBtn) {
-        const handler = () => confirmEndSale();
-        confirmBtn.addEventListener("click", handler);
-        cleanupConfirm = () => confirmBtn.removeEventListener("click", handler);
-      }
-      if (cancelBtn) {
-        const handler = () => confirmModalRef.current?.hideOverlay();
-        cancelBtn.addEventListener("click", handler);
-        cleanupCancel = () => cancelBtn.removeEventListener("click", handler);
-      }
-    }, 500);
-    return () => {
-      clearTimeout(timer);
-      cleanupConfirm?.();
-      cleanupCancel?.();
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  };
 
   const confirmEndSale = () => {
     Sentry.startSpan(
@@ -500,7 +456,7 @@ export default function SaleDetail() {
   }
 
   return (
-    <s-page ref={pageRef as any} heading={sale.name}>
+    <s-page heading={sale.name}>
       <Link to="/app/sales" slot="back-action">
         <s-button variant="tertiary">Back to Sales</s-button>
       </Link>
@@ -510,7 +466,7 @@ export default function SaleDetail() {
           slot="primary-action"
           variant="primary"
           tone="critical"
-          onClick={handleEndSale}
+          ref={(el: HTMLElement | null) => { if (el) el.onclick = () => handleEndSale(); }}
           {...(isEnding ? { loading: true } : {})}
         >
           End Sale
@@ -630,14 +586,14 @@ export default function SaleDetail() {
             slot="primary-action"
             variant="primary"
             tone="critical"
-            onClick={confirmEndSale}
+            ref={(el: HTMLElement | null) => { if (el) el.onclick = () => confirmEndSale(); }}
             {...(isEnding ? { loading: true } : {})}
           >
             End Sale
           </s-button>
           <s-button
             slot="secondary-actions"
-            onClick={() => confirmModalRef.current?.hideOverlay()}
+            ref={(el: HTMLElement | null) => { if (el) el.onclick = () => confirmModalRef.current?.hideOverlay(); }}
           >
             Cancel
           </s-button>
