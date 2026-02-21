@@ -34,7 +34,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     await billing.request({
       plan: MONTHLY_PLAN as any,
       isTest: process.env.NODE_ENV !== "production",
-      returnUrl: `${process.env.SHOPIFY_APP_URL}/auth?shop=${session.shop}`,
+      returnUrl: `https://${session.shop}/admin/apps/${process.env.SHOPIFY_API_KEY}`,
     });
   }
 
