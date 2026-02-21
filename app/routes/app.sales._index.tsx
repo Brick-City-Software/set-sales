@@ -4,7 +4,7 @@ import type {
   LoaderFunctionArgs,
 } from "react-router";
 import { useLoaderData, useFetcher, Link, useRouteError, isRouteErrorResponse, useNavigation, useSearchParams } from "react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import * as Sentry from "@sentry/react";
 import { authenticate } from "../shopify.server";
@@ -571,10 +571,7 @@ export default function SalesIndex() {
   const shopify = useAppBridge();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const [confirmEndSale, setConfirmEndSale] = useState<string | null>(null);
   const [selectedSales, setSelectedSales] = useState<string[]>([]);
-  const confirmEndModalRef = useRef<HTMLElement & { showOverlay: () => void; hideOverlay: () => void }>(null);
-  const confirmBulkModalRef = useRef<HTMLElement & { showOverlay: () => void; hideOverlay: () => void }>(null);
   const [localSearchValue, setLocalSearchValue] = useState(searchQuery);
   const [showFilters, setShowFilters] = useState(false);
 
@@ -631,9 +628,6 @@ export default function SalesIndex() {
         shopify.toast.show(message);
       }
 
-      setConfirmEndSale(null);
-      confirmEndModalRef.current?.hideOverlay();
-      confirmBulkModalRef.current?.hideOverlay();
       setSelectedSales([]);
     }
     if (fetcher.data?.error) {
@@ -642,17 +636,7 @@ export default function SalesIndex() {
   }, [fetcher.data, shopify, fetcher]);
 
   const handleEndSale = (saleId: string) => {
-    setConfirmEndSale(saleId);
-    confirmEndModalRef.current?.showOverlay();
-  };
-
-  const confirmEndSaleAction = () => {
-    if (confirmEndSale) {
-      fetcher.submit(
-        { action: "end", saleId: confirmEndSale },
-        { method: "POST" },
-      );
-    }
+    fetcher.submit({ action: "end", saleId }, { method: "POST" });
   };
 
   const handleCheckboxChange = (saleId: string, checked: boolean) => {
@@ -668,15 +652,8 @@ export default function SalesIndex() {
   };
 
   const handleBulkEndSales = () => {
-    confirmBulkModalRef.current?.showOverlay();
-  };
-
-  const confirmBulkEndAction = () => {
     Sentry.startSpan(
-      {
-        op: "ui.click",
-        name: "Bulk End Sales Confirm",
-      },
+      { op: "ui.click", name: "Bulk End Sales" },
       (span) => {
         span.setAttribute("sale_count", selectedSales.length);
 
@@ -979,48 +956,6 @@ export default function SalesIndex() {
         </>
       )}
 
-      <s-modal ref={confirmEndModalRef as any} heading="End Sale">
-          <s-button
-            slot="primary-action"
-            variant="primary"
-            tone="critical"
-            ref={(el: HTMLElement | null) => { if (el) el.onclick = () => confirmEndSaleAction(); }}
-            {...(isEnding ? { loading: true } : {})}
-          >
-            End Sale
-          </s-button>
-          <s-button
-            slot="secondary-actions"
-            ref={(el: HTMLElement | null) => { if (el) el.onclick = () => { setConfirmEndSale(null); confirmEndModalRef.current?.hideOverlay(); }; }}
-          >
-            Cancel
-          </s-button>
-          <s-paragraph>
-            Are you sure you want to end this sale? Original prices will be
-            restored.
-          </s-paragraph>
-        </s-modal>
-      <s-modal ref={confirmBulkModalRef as any} heading={`End ${selectedSales.length} Sale${selectedSales.length > 1 ? "s" : ""}`}>
-          <s-button
-            slot="primary-action"
-            variant="primary"
-            tone="critical"
-            ref={(el: HTMLElement | null) => { if (el) el.onclick = () => confirmBulkEndAction(); }}
-            {...(isEnding ? { loading: true } : {})}
-          >
-            End {selectedSales.length} Sale{selectedSales.length > 1 ? "s" : ""}
-          </s-button>
-          <s-button
-            slot="secondary-actions"
-            ref={(el: HTMLElement | null) => { if (el) el.onclick = () => confirmBulkModalRef.current?.hideOverlay(); }}
-          >
-            Cancel
-          </s-button>
-          <s-paragraph>
-            Are you sure you want to end {selectedSales.length} sale{selectedSales.length > 1 ? "s" : ""}? Original prices will be
-            restored for all selected sales.
-          </s-paragraph>
-        </s-modal>
     </s-page>
   );
 }

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type {
   ActionFunctionArgs,
   HeadersFunction,
@@ -370,7 +370,6 @@ export default function SaleDetail() {
   const navigation = useNavigation();
   const navigate = useNavigate();
   const shopify = useAppBridge();
-  const confirmModalRef = useRef<HTMLElement & { showOverlay: () => void; hideOverlay: () => void }>(null);
 
   const isEnding = fetcher.state !== "idle";
   const isLoading = navigation.state === "loading";
@@ -382,7 +381,6 @@ export default function SaleDetail() {
       // If this was an undo action, just show success and stay on page
       if (fetcher.data.undone) {
         shopify.toast.show(message);
-        confirmModalRef.current?.hideOverlay();
         return;
       }
 
@@ -398,14 +396,12 @@ export default function SaleDetail() {
             );
           },
         });
-        confirmModalRef.current?.hideOverlay();
         // Don't navigate away immediately - allow user to undo
         setTimeout(() => {
           navigate("/app/sales");
         }, 5000);
       } else {
         shopify.toast.show(message);
-        confirmModalRef.current?.hideOverlay();
         navigate("/app/sales");
       }
     }
@@ -415,19 +411,11 @@ export default function SaleDetail() {
   }, [fetcher.data, shopify, navigate, fetcher]);
 
   const handleEndSale = () => {
-    confirmModalRef.current?.showOverlay();
-  };
-
-  const confirmEndSale = () => {
     Sentry.startSpan(
-      {
-        op: "ui.click",
-        name: "End Sale Confirm",
-      },
+      { op: "ui.click", name: "End Sale" },
       (span) => {
         span.setAttribute("sale_id", sale.id);
         span.setAttribute("variant_count", sale.variants.length);
-
         fetcher.submit({ action: "end" }, { method: "POST" });
       },
     );
@@ -581,27 +569,6 @@ export default function SaleDetail() {
         </s-stack>
       </s-section>
 
-      <s-modal ref={confirmModalRef as any} heading="End Sale">
-          <s-button
-            slot="primary-action"
-            variant="primary"
-            tone="critical"
-            ref={(el: HTMLElement | null) => { if (el) el.onclick = () => confirmEndSale(); }}
-            {...(isEnding ? { loading: true } : {})}
-          >
-            End Sale
-          </s-button>
-          <s-button
-            slot="secondary-actions"
-            ref={(el: HTMLElement | null) => { if (el) el.onclick = () => confirmModalRef.current?.hideOverlay(); }}
-          >
-            Cancel
-          </s-button>
-          <s-paragraph>
-            Are you sure you want to end this sale? Original prices will be
-            restored.
-          </s-paragraph>
-        </s-modal>
     </s-page>
   );
 }
