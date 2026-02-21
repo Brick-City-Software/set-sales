@@ -6,7 +6,7 @@ import { AppProvider } from "@shopify/shopify-app-react-router/react";
 import { authenticate, MONTHLY_PLAN } from "../shopify.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { billing } = await authenticate.admin(request);
+  const { billing, session } = await authenticate.admin(request);
 
   // Gate all app routes behind an active subscription
   await billing.require({
@@ -15,7 +15,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       billing.request({
         plan: MONTHLY_PLAN as any,
         isTest: process.env.NODE_ENV !== "production",
-        returnUrl: `${process.env.SHOPIFY_APP_URL}/app`,
+        returnUrl: `${process.env.SHOPIFY_APP_URL}/auth?shop=${session.shop}`,
       }),
   });
 

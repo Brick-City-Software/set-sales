@@ -26,7 +26,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { billing } = await authenticate.admin(request);
+  const { billing, session } = await authenticate.admin(request);
   const formData = await request.formData();
   const intent = formData.get("intent");
 
@@ -34,7 +34,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     await billing.request({
       plan: MONTHLY_PLAN as any,
       isTest: process.env.NODE_ENV !== "production",
-      returnUrl: `${process.env.SHOPIFY_APP_URL}/app/billing`,
+      returnUrl: `${process.env.SHOPIFY_APP_URL}/auth?shop=${session.shop}`,
     });
   }
 
