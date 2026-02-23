@@ -1,24 +1,22 @@
 import type { ActionFunctionArgs } from "react-router";
 import * as Sentry from "@sentry/react";
-import { authenticate } from "../shopify.server";
+import { authenticate, unauthenticated } from "../shopify.server";
 import db from "../db.server";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { shop, session, admin, topic } = await authenticate.webhook(request);
+  const { shop, topic } = await authenticate.webhook(request);
 
   // Only log webhook info in development (Issue #34)
   if (process.env.NODE_ENV !== "production") {
     console.log(`Received ${topic} webhook for ${shop}`);
   }
 
-  // Webhook requests can trigger multiple times and after an app has already been uninstalled.
-  // If this webhook already ran, the session may have been deleted previously.
-  if (!session || !admin) {
-    return new Response();
-  }
-
-  // Restore prices for all active sales before deleting data
+  // Use unauthenticated.admin so price restoration works even when
+  // authenticate.webhook returns no session (e.g. duplicate delivery or
+  // token already partially revoked by Shopify at uninstall time).
   try {
+    const { admin } = await unauthenticated.admin(shop);
+
     const activeSales = await db.sale.findMany({
       where: { shop, status: "active" },
       include: { variants: true },
@@ -76,6 +74,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
     }
   } catch (error) {
+    // If the session no longer exists (e.g. webhook delivered after cleanup),
+    // there is nothing to restore — log and continue to session deletion.
     Sentry.captureException(error, {
       extra: { shop, context: "uninstall_fetch_active_sales" },
     });
