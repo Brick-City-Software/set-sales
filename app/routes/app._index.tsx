@@ -112,7 +112,7 @@ export default function Dashboard() {
               </Link>
             </s-empty-state>
           ) : (
-            <s-table variant="auto">
+            <s-table>
               <s-table-header>
                 <s-table-header-row>
                   <s-table-header>Name</s-table-header>
