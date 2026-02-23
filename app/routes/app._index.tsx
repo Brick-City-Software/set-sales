@@ -112,48 +112,39 @@ export default function Dashboard() {
               </Link>
             </s-empty-state>
           ) : (
-            <s-table>
-              <s-table-header>
-                <s-table-header-row>
-                  <s-table-header>Name</s-table-header>
-                  <s-table-header>Status</s-table-header>
-                  <s-table-header>Discount</s-table-header>
-                  <s-table-header>Variants</s-table-header>
-                  <s-table-header>Created</s-table-header>
-                  <s-table-header>Actions</s-table-header>
-                </s-table-header-row>
-              </s-table-header>
-              <s-table-body>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr>
+                  {["Name", "Status", "Discount", "Variants", "Created", "Actions"].map((h) => (
+                    <th key={h} style={{ textAlign: "left", padding: "8px 12px", borderBottom: "1px solid var(--p-color-border)", color: "var(--p-color-text-subdued)", fontWeight: "600", fontSize: "13px" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
                 {recentSales.map((sale) => (
-                  <s-table-row key={sale.id}>
-                    <s-table-cell>
+                  <tr key={sale.id} style={{ borderBottom: "1px solid var(--p-color-border-secondary)" }}>
+                    <td style={{ padding: "12px" }}>
                       <Link to={`/app/sales/${sale.id}`}>
                         <s-link>{sale.name}</s-link>
                       </Link>
-                    </s-table-cell>
-                    <s-table-cell>
-                      <s-badge
-                        tone={sale.status === "active" ? "success" : "neutral"}
-                      >
+                    </td>
+                    <td style={{ padding: "12px" }}>
+                      <s-badge tone={sale.status === "active" ? "success" : "neutral"}>
                         {sale.status}
                       </s-badge>
-                    </s-table-cell>
-                    <s-table-cell>
-                      {formatDiscountType(sale.discountType, sale.discountValue)}
-                    </s-table-cell>
-                    <s-table-cell>{sale.variants.length}</s-table-cell>
-                    <s-table-cell>
-                      {formatDate(sale.createdAt)}
-                    </s-table-cell>
-                    <s-table-cell>
+                    </td>
+                    <td style={{ padding: "12px" }}>{formatDiscountType(sale.discountType, sale.discountValue)}</td>
+                    <td style={{ padding: "12px" }}>{sale.variants.length}</td>
+                    <td style={{ padding: "12px" }}>{formatDate(sale.createdAt)}</td>
+                    <td style={{ padding: "12px" }}>
                       <Link to={`/app/sales/${sale.id}`}>
                         <s-button variant="tertiary">View</s-button>
                       </Link>
-                    </s-table-cell>
-                  </s-table-row>
+                    </td>
+                  </tr>
                 ))}
-              </s-table-body>
-            </s-table>
+              </tbody>
+            </table>
           )}
 
           {recentSales.length > 0 && (
