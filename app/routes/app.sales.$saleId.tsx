@@ -16,7 +16,7 @@ import { formatDate } from "../utils/date";
 import { trackEvent, trackError } from "../utils/analytics";
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const saleId = params.saleId;
 
   const sale = await db.sale.findFirst({
@@ -30,7 +30,41 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     throw new Response("Sale not found", { status: 404 });
   }
 
-  return { sale };
+  // Fetch product and variant titles from Shopify
+  const variantIds = sale.variants.map((v) => v.variantId);
+  const variantTitles: Record<string, { productTitle: string; variantTitle: string }> = {};
+
+  try {
+    const response = await admin.graphql(
+      `#graphql
+      query GetVariantTitles($ids: [ID!]!) {
+        nodes(ids: $ids) {
+          ... on ProductVariant {
+            id
+            title
+            product {
+              title
+            }
+          }
+        }
+      }`,
+      { variables: { ids: variantIds } },
+    );
+    const result = await response.json();
+    for (const node of result.data?.nodes ?? []) {
+      if (node?.id) {
+        variantTitles[node.id] = {
+          productTitle: node.product?.title ?? "",
+          variantTitle: node.title ?? "",
+        };
+      }
+    }
+  } catch (error) {
+    // Non-fatal — table will fall back to IDs
+    console.error("Failed to fetch variant titles:", error);
+  }
+
+  return { sale, variantTitles };
 };
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
@@ -365,7 +399,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 };
 
 export default function SaleDetail() {
-  const { sale } = useLoaderData<typeof loader>();
+  const { sale, variantTitles } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
   const navigation = useNavigation();
   const navigate = useNavigate();
@@ -495,7 +529,7 @@ export default function SaleDetail() {
         <s-table variant="auto">
           <s-table-header>
             <s-table-header-row>
-              <s-table-header>Variant ID</s-table-header>
+              <s-table-header>Product</s-table-header>
               <s-table-header>Original Price</s-table-header>
               <s-table-header>Sale Price</s-table-header>
               <s-table-header>Savings</s-table-header>
@@ -510,7 +544,11 @@ export default function SaleDetail() {
               return (
                 <s-table-row key={variant.id}>
                   <s-table-cell>
-                    {variant.variantId.split("/").pop()}
+                    {variantTitles[variant.variantId]
+                      ? variantTitles[variant.variantId].variantTitle === "Default Title"
+                        ? variantTitles[variant.variantId].productTitle
+                        : `${variantTitles[variant.variantId].productTitle} — ${variantTitles[variant.variantId].variantTitle}`
+                      : variant.variantId.split("/").pop()}
                   </s-table-cell>
                   <s-table-cell>
                     <span
