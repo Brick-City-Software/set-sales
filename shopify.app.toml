@@ -30,3 +30,6 @@ scopes = "write_products"
 
 [auth]
 redirect_urls = [ "https://www.setsales.app/api/auth" ]
+
+[app_store]
+search_terms = [ "sale", "discount", "price", "bulk pricing" ]
