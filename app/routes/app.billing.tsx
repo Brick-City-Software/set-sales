@@ -85,13 +85,13 @@ export default function BillingPage() {
               )}
             </s-stack>
 
-            <s-list>
-              <s-list-item>14-day free trial — no charge until trial ends</s-list-item>
-              <s-list-item>Put any products on sale with percentage, fixed amount, or fixed price discounts</s-list-item>
-              <s-list-item>Automatically set compare-at prices so customers see the original price</s-list-item>
-              <s-list-item>Track all active and ended sales in one place</s-list-item>
-              <s-list-item>Up to 500 variants per sale</s-list-item>
-            </s-list>
+            <ul style={{ paddingLeft: "20px", margin: 0, lineHeight: "2" }}>
+              <li>14-day free trial — no charge until trial ends</li>
+              <li>Put any products on sale with percentage, fixed amount, or fixed price discounts</li>
+              <li>Automatically set compare-at prices so customers see the original price</li>
+              <li>Track all active and ended sales in one place</li>
+              <li>Up to 500 variants per sale</li>
+            </ul>
 
             {hasActivePayment ? (
               <s-stack gap="base">
