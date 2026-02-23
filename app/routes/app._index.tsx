@@ -74,31 +74,22 @@ export default function Dashboard() {
       <s-stack gap="large">
         {/* Statistics Cards */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "16px" }}>
-          <s-section>
-            <s-stack gap="small">
-              <div style={{ fontSize: "24px", fontWeight: "bold" }}>
-                {stats.activeSalesCount}
-              </div>
-              <div style={{ color: "var(--p-color-text-subdued)" }}>Active Sales</div>
-            </s-stack>
+          <s-section heading="Active Sales">
+            <div style={{ fontSize: "24px", fontWeight: "bold" }}>
+              {stats.activeSalesCount}
+            </div>
           </s-section>
 
-          <s-section>
-            <s-stack gap="small">
-              <div style={{ fontSize: "24px", fontWeight: "bold" }}>
-                {stats.totalVariantsOnSale}
-              </div>
-              <div style={{ color: "var(--p-color-text-subdued)" }}>Variants on Sale</div>
-            </s-stack>
+          <s-section heading="Variants on Sale">
+            <div style={{ fontSize: "24px", fontWeight: "bold" }}>
+              {stats.totalVariantsOnSale}
+            </div>
           </s-section>
 
-          <s-section>
-            <s-stack gap="small">
-              <div style={{ fontSize: "24px", fontWeight: "bold" }}>
-                ${stats.totalSavings.toFixed(2)}
-              </div>
-              <div style={{ color: "var(--p-color-text-subdued)" }}>Total Savings Offered</div>
-            </s-stack>
+          <s-section heading="Total Savings Offered">
+            <div style={{ fontSize: "24px", fontWeight: "bold" }}>
+              ${stats.totalSavings.toFixed(2)}
+            </div>
           </s-section>
         </div>
 
