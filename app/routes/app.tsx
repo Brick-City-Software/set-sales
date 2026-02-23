@@ -8,16 +8,20 @@ import { authenticate, MONTHLY_PLAN } from "../shopify.server";
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { billing, session } = await authenticate.admin(request);
 
-  // Gate all app routes behind an active subscription
-  await billing.require({
-    plans: [MONTHLY_PLAN] as any,
-    onFailure: async () =>
-      billing.request({
-        plan: MONTHLY_PLAN as any,
-        isTest: process.env.NODE_ENV !== "production",
-        returnUrl: `https://${session.shop}/admin/apps/${process.env.SHOPIFY_API_KEY}`,
-      }),
-  });
+  // Gate all app routes behind an active subscription, except the billing
+  // page itself so users can always reach it to resubscribe or view status.
+  const url = new URL(request.url);
+  if (!url.pathname.startsWith("/app/billing")) {
+    await billing.require({
+      plans: [MONTHLY_PLAN] as any,
+      onFailure: async () =>
+        billing.request({
+          plan: MONTHLY_PLAN as any,
+          isTest: process.env.NODE_ENV !== "production",
+          returnUrl: `https://${session.shop}/admin/apps/${process.env.SHOPIFY_API_KEY}`,
+        }),
+    });
+  }
 
   // Validate API key is configured (Issue #38)
   const apiKey = process.env.SHOPIFY_API_KEY;
