@@ -843,10 +843,10 @@ export default function SalesIndex() {
                     </s-stack>
                   </div>
                 )}
-                <s-table variant="auto">
-                  <s-table-header>
-                    <s-table-header-row>
-                      <s-table-header>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr>
+                      <th style={{ textAlign: "left", padding: "8px 12px", borderBottom: "1px solid var(--p-color-border)", color: "var(--p-color-text-subdued)", fontWeight: "600", fontSize: "13px" }}>
                         <s-checkbox
                           id="select-all-checkbox"
                           checked={allSelected}
@@ -855,18 +855,16 @@ export default function SalesIndex() {
                             handleSelectAll((e.target as HTMLInputElement).checked)
                           }
                         />
-                      </s-table-header>
-                      <s-table-header>Name</s-table-header>
-                      <s-table-header>Discount</s-table-header>
-                      <s-table-header>Variants</s-table-header>
-                      <s-table-header>Created</s-table-header>
-                      <s-table-header>Actions</s-table-header>
-                    </s-table-header-row>
-                  </s-table-header>
-                  <s-table-body>
+                      </th>
+                      {["Name", "Discount", "Variants", "Created", "Actions"].map((h) => (
+                        <th key={h} style={{ textAlign: "left", padding: "8px 12px", borderBottom: "1px solid var(--p-color-border)", color: "var(--p-color-text-subdued)", fontWeight: "600", fontSize: "13px" }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
                     {activeSales.map((sale) => (
-                      <s-table-row key={sale.id} clickDelegate={`checkbox-${sale.id}`}>
-                        <s-table-cell>
+                      <tr key={sale.id} style={{ borderBottom: "1px solid var(--p-color-border-secondary)" }}>
+                        <td style={{ padding: "12px" }}>
                           <s-checkbox
                             id={`checkbox-${sale.id}`}
                             checked={selectedSales.includes(sale.id)}
@@ -877,20 +875,16 @@ export default function SalesIndex() {
                               )
                             }
                           />
-                        </s-table-cell>
-                        <s-table-cell>
+                        </td>
+                        <td style={{ padding: "12px" }}>
                           <Link to={`/app/sales/${sale.id}`}>
                             <s-link>{sale.name}</s-link>
                           </Link>
-                        </s-table-cell>
-                        <s-table-cell>
-                          {formatDiscountType(sale.discountType, sale.discountValue)}
-                        </s-table-cell>
-                        <s-table-cell>{sale.variants.length}</s-table-cell>
-                        <s-table-cell>
-                          {formatDate(sale.createdAt)}
-                        </s-table-cell>
-                        <s-table-cell>
+                        </td>
+                        <td style={{ padding: "12px" }}>{formatDiscountType(sale.discountType, sale.discountValue)}</td>
+                        <td style={{ padding: "12px" }}>{sale.variants.length}</td>
+                        <td style={{ padding: "12px" }}>{formatDate(sale.createdAt)}</td>
+                        <td style={{ padding: "12px" }}>
                           <s-stack direction="inline" gap="base">
                             <Link to={`/app/sales/${sale.id}`}>
                               <s-button variant="tertiary">View</s-button>
@@ -904,51 +898,45 @@ export default function SalesIndex() {
                               End Sale
                             </s-button>
                           </s-stack>
-                        </s-table-cell>
-                      </s-table-row>
+                        </td>
+                      </tr>
                     ))}
-                  </s-table-body>
-                </s-table>
+                  </tbody>
+                </table>
               </>
             )}
           </s-section>
 
           {endedSales.length > 0 && (
             <s-section heading={`Past Sales (${endedSales.length})`}>
-              <s-table variant="auto">
-                <s-table-header>
-                  <s-table-header-row>
-                    <s-table-header>Name</s-table-header>
-                    <s-table-header>Discount</s-table-header>
-                    <s-table-header>Variants</s-table-header>
-                    <s-table-header>Created</s-table-header>
-                    <s-table-header>Actions</s-table-header>
-                  </s-table-header-row>
-                </s-table-header>
-                <s-table-body>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr>
+                    {["Name", "Discount", "Variants", "Created", "Actions"].map((h) => (
+                      <th key={h} style={{ textAlign: "left", padding: "8px 12px", borderBottom: "1px solid var(--p-color-border)", color: "var(--p-color-text-subdued)", fontWeight: "600", fontSize: "13px" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
                   {endedSales.map((sale) => (
-                    <s-table-row key={sale.id}>
-                      <s-table-cell>
+                    <tr key={sale.id} style={{ borderBottom: "1px solid var(--p-color-border-secondary)" }}>
+                      <td style={{ padding: "12px" }}>
                         <Link to={`/app/sales/${sale.id}`}>
                           <s-link>{sale.name}</s-link>
                         </Link>
-                      </s-table-cell>
-                      <s-table-cell>
-                        {formatDiscountType(sale.discountType, sale.discountValue)}
-                      </s-table-cell>
-                      <s-table-cell>{sale.variants.length}</s-table-cell>
-                      <s-table-cell>
-                        {formatDate(sale.createdAt)}
-                      </s-table-cell>
-                      <s-table-cell>
+                      </td>
+                      <td style={{ padding: "12px" }}>{formatDiscountType(sale.discountType, sale.discountValue)}</td>
+                      <td style={{ padding: "12px" }}>{sale.variants.length}</td>
+                      <td style={{ padding: "12px" }}>{formatDate(sale.createdAt)}</td>
+                      <td style={{ padding: "12px" }}>
                         <Link to={`/app/sales/${sale.id}`}>
                           <s-button variant="tertiary">View</s-button>
                         </Link>
-                      </s-table-cell>
-                    </s-table-row>
+                      </td>
+                    </tr>
                   ))}
-                </s-table-body>
-              </s-table>
+                </tbody>
+              </table>
             </s-section>
           )}
             </>
