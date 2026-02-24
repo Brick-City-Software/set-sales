@@ -32,70 +32,80 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     select: { accessToken: true },
   });
 
-  if (session?.accessToken) {
-    const accessToken = session.accessToken;
-    const graphqlEndpoint = `https://${shop}/admin/api/${apiVersion}/graphql.json`;
+  const activeSales = await db.sale.findMany({
+    where: { shop, status: { in: ["active", "ending"] } },
+    include: { variants: true },
+  });
 
-    const activeSales = await db.sale.findMany({
-      where: { shop, status: { in: ["active", "ending"] } },
-      include: { variants: true },
-    });
+  if (activeSales.length > 0) {
+    // Attempt price restoration using the stored offline token. This may fail
+    // if Shopify has already revoked the token by the time this webhook fires,
+    // but we always mark sales as ended in the DB regardless so reinstalling
+    // doesn't leave the app in a broken state.
+    if (session?.accessToken) {
+      const accessToken = session.accessToken;
+      const graphqlEndpoint = `https://${shop}/admin/api/${apiVersion}/graphql.json`;
 
-    for (const sale of activeSales) {
-      try {
-        // Group variants by product ID
-        const variantsByProduct = new Map<
-          string,
-          { id: string; price: string; compareAtPrice: null }[]
-        >();
+      for (const sale of activeSales) {
+        try {
+          const variantsByProduct = new Map<
+            string,
+            { id: string; price: string; compareAtPrice: null }[]
+          >();
 
-        for (const variant of sale.variants) {
-          const existing = variantsByProduct.get(variant.productId) || [];
-          existing.push({
-            id: variant.variantId,
-            price: variant.originalPrice,
-            compareAtPrice: null,
-          });
-          variantsByProduct.set(variant.productId, existing);
-        }
-
-        // Restore original prices for each product
-        for (const [productId, variants] of variantsByProduct) {
-          const response = await fetch(graphqlEndpoint, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "X-Shopify-Access-Token": accessToken,
-            },
-            body: JSON.stringify({
-              query: RESTORE_MUTATION,
-              variables: { productId, variants },
-            }),
-          });
-
-          const result = await response.json();
-          const userErrors =
-            result.data?.productVariantsBulkUpdate?.userErrors || [];
-          if (userErrors.length > 0) {
-            Sentry.captureException(
-              new Error(
-                `Failed to restore prices on uninstall for product ${productId}: ${userErrors.map((e: { message: string }) => e.message).join(", ")}`,
-              ),
-              { extra: { shop, saleId: sale.id } },
-            );
+          for (const variant of sale.variants) {
+            const existing = variantsByProduct.get(variant.productId) || [];
+            existing.push({
+              id: variant.variantId,
+              price: variant.originalPrice,
+              compareAtPrice: null,
+            });
+            variantsByProduct.set(variant.productId, existing);
           }
+
+          for (const [productId, variants] of variantsByProduct) {
+            const response = await fetch(graphqlEndpoint, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "X-Shopify-Access-Token": accessToken,
+              },
+              body: JSON.stringify({
+                query: RESTORE_MUTATION,
+                variables: { productId, variants },
+              }),
+            });
+
+            const result = await response.json();
+            const userErrors =
+              result.data?.productVariantsBulkUpdate?.userErrors || [];
+            if (userErrors.length > 0) {
+              Sentry.captureException(
+                new Error(
+                  `Failed to restore prices on uninstall for product ${productId}: ${userErrors.map((e: { message: string }) => e.message).join(", ")}`,
+                ),
+                { extra: { shop, saleId: sale.id } },
+              );
+            }
+          }
+        } catch (error) {
+          Sentry.captureException(error, {
+            extra: { shop, saleId: sale.id, context: "uninstall_price_restore" },
+          });
         }
-      } catch (error) {
-        Sentry.captureException(error, {
-          extra: { shop, saleId: sale.id, context: "uninstall_price_restore" },
-        });
       }
+    } else {
+      Sentry.captureException(
+        new Error(`No offline session found for shop ${shop} during uninstall — prices not restored`),
+        { extra: { shop, context: "uninstall_no_session" } },
+      );
     }
-  } else {
-    Sentry.captureException(
-      new Error(`No offline session found for shop ${shop} during uninstall`),
-      { extra: { shop, context: "uninstall_no_session" } },
-    );
+
+    // Always mark active sales as ended so reinstalling doesn't show stale state
+    await db.sale.updateMany({
+      where: { shop, status: { in: ["active", "ending"] } },
+      data: { status: "ended" },
+    });
   }
 
   // Delete sessions regardless of price restoration outcome

@@ -807,6 +807,13 @@ export default function SalesIndex() {
           ) : (
             <>
               <s-section heading={`Active Sales (${activeSales.length})`}>
+            {activeSales.length > 0 && (
+              <s-banner tone="warning">
+                <s-paragraph>
+                  If you plan to uninstall Set Sales, please end all active sales first to restore your original product prices.
+                </s-paragraph>
+              </s-banner>
+            )}
             {activeSales.length === 0 ? (
               <s-empty-state
                 heading="No active sales"
