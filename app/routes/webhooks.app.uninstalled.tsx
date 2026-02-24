@@ -1,7 +1,18 @@
 import type { ActionFunctionArgs } from "react-router";
 import * as Sentry from "@sentry/react";
-import { authenticate, unauthenticated } from "../shopify.server";
+import { authenticate, apiVersion } from "../shopify.server";
 import db from "../db.server";
+
+const RESTORE_MUTATION = `
+  mutation RestoreOriginalPrices($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+    productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { shop, topic } = await authenticate.webhook(request);
@@ -11,14 +22,22 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     console.log(`Received ${topic} webhook for ${shop}`);
   }
 
-  // Use unauthenticated.admin so price restoration works even when
-  // authenticate.webhook returns no session (e.g. duplicate delivery or
-  // token already partially revoked by Shopify at uninstall time).
-  try {
-    const { admin } = await unauthenticated.admin(shop);
+  // Look up the offline session directly from the DB to get the access token.
+  // We bypass unauthenticated.admin() because with expiringOfflineAccessTokens
+  // enabled it tries to refresh the token — which fails at uninstall time since
+  // Shopify has already revoked it. Using the stored token directly still works
+  // for the brief window between uninstall and full revocation.
+  const session = await db.session.findFirst({
+    where: { shop, isOnline: false },
+    select: { accessToken: true },
+  });
+
+  if (session?.accessToken) {
+    const accessToken = session.accessToken;
+    const graphqlEndpoint = `https://${shop}/admin/api/${apiVersion}/graphql.json`;
 
     const activeSales = await db.sale.findMany({
-      where: { shop, status: "active" },
+      where: { shop, status: { in: ["active", "ending"] } },
       include: { variants: true },
     });
 
@@ -42,18 +61,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
         // Restore original prices for each product
         for (const [productId, variants] of variantsByProduct) {
-          const response = await admin.graphql(
-            `#graphql
-            mutation RestoreOriginalPrices($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
-              productVariantsBulkUpdate(productId: $productId, variants: $variants) {
-                userErrors {
-                  field
-                  message
-                }
-              }
-            }`,
-            { variables: { productId, variants } },
-          );
+          const response = await fetch(graphqlEndpoint, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Shopify-Access-Token": accessToken,
+            },
+            body: JSON.stringify({
+              query: RESTORE_MUTATION,
+              variables: { productId, variants },
+            }),
+          });
 
           const result = await response.json();
           const userErrors =
@@ -73,12 +91,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         });
       }
     }
-  } catch (error) {
-    // If the session no longer exists (e.g. webhook delivered after cleanup),
-    // there is nothing to restore — log and continue to session deletion.
-    Sentry.captureException(error, {
-      extra: { shop, context: "uninstall_fetch_active_sales" },
-    });
+  } else {
+    Sentry.captureException(
+      new Error(`No offline session found for shop ${shop} during uninstall`),
+      { extra: { shop, context: "uninstall_no_session" } },
+    );
   }
 
   // Delete sessions regardless of price restoration outcome
