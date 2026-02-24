@@ -707,10 +707,6 @@ export default function SalesIndex() {
 
   return (
     <s-page heading="Sales">
-      <Link to="/app/sales/new" slot="primary-action">
-        <s-button variant="primary" slot="primary-action">Create Sale</s-button>
-      </Link>
-
       {sales.length === 0 && !hasFilters ? (
         <s-empty-state
           heading="Create your first sale"
@@ -728,6 +724,11 @@ export default function SalesIndex() {
         <>
           <div style={{ marginBottom: "var(--p-space-400)" }}>
             <s-stack direction="block" gap="base">
+              <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                <Link to="/app/sales/new">
+                  <s-button variant="primary">Create Sale</s-button>
+                </Link>
+              </div>
               <s-stack direction="inline" gap="base">
                 <div style={{ flex: 1 }}>
                   <s-text-field
