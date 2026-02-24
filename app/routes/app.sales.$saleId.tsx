@@ -526,69 +526,51 @@ export default function SaleDetail() {
       </s-section>
 
       <s-section heading={`Products on Sale (${sale.variants.length} variants)`}>
-        <s-table variant="auto">
-          <s-table-header>
-            <s-table-header-row>
-              <s-table-header>Product</s-table-header>
-              <s-table-header>Original Price</s-table-header>
-              <s-table-header>Sale Price</s-table-header>
-              <s-table-header>Savings</s-table-header>
-            </s-table-header-row>
-          </s-table-header>
-          <s-table-body>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead>
+            <tr>
+              {["Product", "Original Price", "Sale Price", "Savings"].map((h) => (
+                <th key={h} style={{ textAlign: "left", padding: "8px 12px", borderBottom: "1px solid var(--p-color-border)", color: "var(--p-color-text-subdued)", fontWeight: "600", fontSize: "13px" }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
             {sale.variants.map((variant) => {
               const original = parseFloat(variant.originalPrice);
               const salePrice = parseFloat(variant.salePrice);
               const savings = original - salePrice;
 
               return (
-                <s-table-row key={variant.id}>
-                  <s-table-cell>
+                <tr key={variant.id} style={{ borderBottom: "1px solid var(--p-color-border-secondary)" }}>
+                  <td style={{ padding: "12px" }}>
                     {variantTitles[variant.variantId]
                       ? variantTitles[variant.variantId].variantTitle === "Default Title"
                         ? variantTitles[variant.variantId].productTitle
                         : `${variantTitles[variant.variantId].productTitle} — ${variantTitles[variant.variantId].variantTitle}`
                       : variant.variantId.split("/").pop()}
-                  </s-table-cell>
-                  <s-table-cell>
-                    <span
-                      style={{
-                        textDecoration:
-                          sale.status === "active" ? "line-through" : "none",
-                      }}
-                    >
+                  </td>
+                  <td style={{ padding: "12px" }}>
+                    <span style={{ textDecoration: sale.status === "active" ? "line-through" : "none" }}>
                       ${original.toFixed(2)}
                     </span>
-                  </s-table-cell>
-                  <s-table-cell>
-                    <strong style={{ color: "var(--p-color-text-success)" }}>
-                      ${salePrice.toFixed(2)}
-                    </strong>
-                  </s-table-cell>
-                  <s-table-cell>
+                  </td>
+                  <td style={{ padding: "12px" }}>
+                    <strong style={{ color: "var(--p-color-text-success)" }}>${salePrice.toFixed(2)}</strong>
+                  </td>
+                  <td style={{ padding: "12px" }}>
                     <span style={{ color: "var(--p-color-text-success)" }}>${savings.toFixed(2)}</span>
-                  </s-table-cell>
-                </s-table-row>
+                  </td>
+                </tr>
               );
             })}
-            <s-table-row>
-              <s-table-cell>
-                <strong>Total</strong>
-              </s-table-cell>
-              <s-table-cell>
-                <strong>${totalOriginal.toFixed(2)}</strong>
-              </s-table-cell>
-              <s-table-cell>
-                <strong>${totalSale.toFixed(2)}</strong>
-              </s-table-cell>
-              <s-table-cell>
-                <strong style={{ color: "var(--p-color-text-success)" }}>
-                  ${totalSavings.toFixed(2)}
-                </strong>
-              </s-table-cell>
-            </s-table-row>
-          </s-table-body>
-        </s-table>
+            <tr style={{ borderTop: "2px solid var(--p-color-border)" }}>
+              <td style={{ padding: "12px" }}><strong>Total</strong></td>
+              <td style={{ padding: "12px" }}><strong>${totalOriginal.toFixed(2)}</strong></td>
+              <td style={{ padding: "12px" }}><strong>${totalSale.toFixed(2)}</strong></td>
+              <td style={{ padding: "12px" }}><strong style={{ color: "var(--p-color-text-success)" }}>${totalSavings.toFixed(2)}</strong></td>
+            </tr>
+          </tbody>
+        </table>
       </s-section>
 
       <s-section slot="aside" heading="Quick Stats">
