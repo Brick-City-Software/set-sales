@@ -583,59 +583,31 @@ export default function NewSale() {
             placeholder="e.g., Summer Clearance"
           />
 
-          <s-stack direction="block" gap="base">
-            <strong>Discount Type</strong>
-            <s-stack direction="inline" gap="base">
-              <label style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                <input
-                  type="radio"
-                  name="discountType"
-                  value="percentage"
-                  checked={discountType === "percentage"}
-                  onChange={(e) => setDiscountType(e.target.value)}
-                />
-                Percentage off
-              </label>
-              <label style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                <input
-                  type="radio"
-                  name="discountType"
-                  value="fixed_amount"
-                  checked={discountType === "fixed_amount"}
-                  onChange={(e) => setDiscountType(e.target.value)}
-                />
-                Fixed amount off
-              </label>
-              <label style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                <input
-                  type="radio"
-                  name="discountType"
-                  value="fixed_price"
-                  checked={discountType === "fixed_price"}
-                  onChange={(e) => setDiscountType(e.target.value)}
-                />
-                Set specific price
-              </label>
-            </s-stack>
-          </s-stack>
+          <s-choice-list
+            label="Discount Type"
+            name="discountType"
+            values={[discountType]}
+            onChange={(e: Event) => setDiscountType((e.currentTarget as HTMLElement & { values: string[] }).values[0])}
+          >
+            <s-choice value="percentage" selected={discountType === "percentage"}>Percentage off</s-choice>
+            <s-choice value="fixed_amount" selected={discountType === "fixed_amount"}>Fixed amount off</s-choice>
+            <s-choice value="fixed_price" selected={discountType === "fixed_price"}>Set specific price</s-choice>
+          </s-choice-list>
 
-          <div>
-            <label>
-              {discountType === "percentage"
+          <s-number-field
+            label={
+              discountType === "percentage"
                 ? "Discount Percentage"
                 : discountType === "fixed_amount"
-                  ? "Amount Off ($)"
-                  : "Sale Price ($)"}
-            </label>
-            <br />
-            <input
-              type="number"
-              value={discountValue}
-              onChange={(e) => setDiscountValue(e.target.value)}
-              style={{ padding: "8px", width: "120px" }}
-            />
-            {discountType === "percentage" ? " %" : ""}
-          </div>
+                  ? "Amount Off"
+                  : "Sale Price"
+            }
+            value={discountValue}
+            {...(discountType === "percentage" ? { suffix: "%" } : { prefix: "$" })}
+            min={0}
+            {...(discountType === "percentage" ? { max: 100 } : {})}
+            onInput={(e: Event) => setDiscountValue((e.target as HTMLInputElement).value)}
+          />
         </s-stack>
       </s-section>
 
@@ -686,12 +658,9 @@ export default function NewSale() {
                   >
                     <s-stack direction="block" gap="base">
                       <s-stack direction="inline" gap="base">
-                        <input
-                          type="checkbox"
+                        <s-checkbox
                           checked={allSelected}
-                          ref={(el) => {
-                            if (el) el.indeterminate = someSelected && !allSelected;
-                          }}
+                          indeterminate={someSelected && !allSelected}
                           onChange={() => toggleProduct(product)}
                           disabled={selectableVariants.length === 0}
                         />
@@ -713,18 +682,13 @@ export default function NewSale() {
                           );
 
                           return (
-                            <div
+                            <s-stack
                               key={variant.id}
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "8px",
-                                padding: "4px 0",
-                                opacity: isOnSale ? 0.5 : 1,
-                              }}
+                              direction="inline"
+                              gap="base"
+                              style={{ padding: "4px 0", opacity: isOnSale ? 0.5 : 1 }}
                             >
-                              <input
-                                type="checkbox"
+                              <s-checkbox
                                 checked={isSelected}
                                 onChange={() =>
                                   toggleVariant(
@@ -736,17 +700,17 @@ export default function NewSale() {
                                 }
                                 disabled={isOnSale}
                               />
-                              <span>
+                              <s-text>
                                 {variant.title} - ${variant.price}
-                              </span>
+                              </s-text>
                               {isOnSale ? (
                                 <s-badge tone="warning">Already on sale</s-badge>
                               ) : isSelected ? (
-                                <span style={{ color: "var(--p-color-text-success)" }}>
+                                <s-text tone="success">
                                   → ${salePrice.toFixed(2)}
-                                </span>
+                                </s-text>
                               ) : null}
-                            </div>
+                            </s-stack>
                           );
                         })}
                       </div>

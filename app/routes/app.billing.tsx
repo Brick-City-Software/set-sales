@@ -2,6 +2,7 @@ import type { ActionFunctionArgs, LoaderFunctionArgs, HeadersFunction } from "re
 import { useLoaderData, useSubmit, useNavigation, useRouteError, isRouteErrorResponse } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate, MONTHLY_PLAN } from "../shopify.server";
+import { formatDate } from "../utils/date";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { billing } = await authenticate.admin(request);
@@ -34,7 +35,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     await billing.request({
       plan: MONTHLY_PLAN as any,
       isTest: process.env.NODE_ENV !== "production",
-      returnUrl: `https://${session.shop}/admin/apps/${process.env.SHOPIFY_API_KEY}`,
+      returnUrl: `${process.env.SHOPIFY_APP_URL}/app/billing`,
     });
   }
 
@@ -97,12 +98,7 @@ export default function BillingPage() {
               <s-stack gap="base">
                 {subscription && (
                   <div style={{ color: "var(--p-color-text-subdued)", fontSize: "14px" }}>
-                    Subscribed since{" "}
-                    {new Date(subscription.createdAt).toLocaleDateString("en-US", {
-                      year: "numeric",
-                      month: "long",
-                      day: "numeric",
-                    })}
+                    Subscribed since {formatDate(subscription.createdAt)}
                   </div>
                 )}
                 <div>

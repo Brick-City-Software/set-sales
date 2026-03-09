@@ -73,28 +73,34 @@ export default function Dashboard() {
 
       <s-stack gap="large">
         {/* Statistics Cards */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "16px" }}>
-          <s-section>
-            <s-stack gap="small">
-              <div style={{ color: "var(--p-color-text-subdued)", fontWeight: "600", textTransform: "uppercase", fontSize: "12px", letterSpacing: "0.05em" }}>Active Sales</div>
-              <div style={{ fontSize: "24px", fontWeight: "bold" }}>{stats.activeSalesCount}</div>
-            </s-stack>
-          </s-section>
+        <s-grid>
+          <s-grid-item>
+            <s-section>
+              <s-stack gap="small">
+                <div style={{ color: "var(--p-color-text-subdued)", fontWeight: "600", textTransform: "uppercase", fontSize: "12px", letterSpacing: "0.05em" }}>Active Sales</div>
+                <div style={{ fontSize: "24px", fontWeight: "bold" }}>{stats.activeSalesCount}</div>
+              </s-stack>
+            </s-section>
+          </s-grid-item>
 
-          <s-section>
-            <s-stack gap="small">
-              <div style={{ color: "var(--p-color-text-subdued)", fontWeight: "600", textTransform: "uppercase", fontSize: "12px", letterSpacing: "0.05em" }}>Variants on Sale</div>
-              <div style={{ fontSize: "24px", fontWeight: "bold" }}>{stats.totalVariantsOnSale}</div>
-            </s-stack>
-          </s-section>
+          <s-grid-item>
+            <s-section>
+              <s-stack gap="small">
+                <div style={{ color: "var(--p-color-text-subdued)", fontWeight: "600", textTransform: "uppercase", fontSize: "12px", letterSpacing: "0.05em" }}>Variants on Sale</div>
+                <div style={{ fontSize: "24px", fontWeight: "bold" }}>{stats.totalVariantsOnSale}</div>
+              </s-stack>
+            </s-section>
+          </s-grid-item>
 
-          <s-section>
-            <s-stack gap="small">
-              <div style={{ color: "var(--p-color-text-subdued)", fontWeight: "600", textTransform: "uppercase", fontSize: "12px", letterSpacing: "0.05em" }}>Total Savings Offered</div>
-              <div style={{ fontSize: "24px", fontWeight: "bold" }}>${stats.totalSavings.toFixed(2)}</div>
-            </s-stack>
-          </s-section>
-        </div>
+          <s-grid-item>
+            <s-section>
+              <s-stack gap="small">
+                <div style={{ color: "var(--p-color-text-subdued)", fontWeight: "600", textTransform: "uppercase", fontSize: "12px", letterSpacing: "0.05em" }}>Total Savings Offered</div>
+                <div style={{ fontSize: "24px", fontWeight: "bold" }}>${stats.totalSavings.toFixed(2)}</div>
+              </s-stack>
+            </s-section>
+          </s-grid-item>
+        </s-grid>
 
         {/* Recent Sales */}
         <s-section heading="Recent Sales">

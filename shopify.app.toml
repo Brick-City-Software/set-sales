@@ -1,7 +1,7 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
 client_id = "198c86d5daaaa6a1ff39e1f06b513ba9"
-name = "set-sales"
+name = "Set Sales"
 application_url = "https://www.setsales.app"
 embedded = true
 
@@ -16,13 +16,12 @@ api_version = "2025-10"
   uri = "/webhooks/app/uninstalled"
 
   [[webhooks.subscriptions]]
-  topics = [ "app/scopes_update" ]
-  uri = "/webhooks/app/scopes_update"
+  uri = "/webhooks/gdpr"
+  compliance_topics = [ "customers/data_request", "customers/redact", "shop/redact" ]
 
   [[webhooks.subscriptions]]
-  compliance_topics = [ "customers/data_request", "customers/redact", "shop/redact" ]
-  uri = "/webhooks/gdpr"
-
+  topics = [ "app/scopes_update" ]
+  uri = "/webhooks/app/scopes_update"
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
@@ -30,6 +29,3 @@ scopes = "write_products"
 
 [auth]
 redirect_urls = [ "https://www.setsales.app/api/auth" ]
-
-[app_store]
-search_terms = [ "sale", "discount", "price", "bulk pricing" ]

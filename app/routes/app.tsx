@@ -18,7 +18,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         billing.request({
           plan: MONTHLY_PLAN as any,
           isTest: process.env.NODE_ENV !== "production",
-          returnUrl: `https://${session.shop}/admin/apps/${process.env.SHOPIFY_API_KEY}`,
+          returnUrl: `${process.env.SHOPIFY_APP_URL}/app/billing`,
         }),
     });
   }

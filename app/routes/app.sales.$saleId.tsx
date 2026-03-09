@@ -479,9 +479,7 @@ export default function SaleDetail() {
 
   return (
     <s-page heading={sale.name}>
-      <Link to="/app/sales" slot="back-action">
-        <s-button variant="tertiary">Back to Sales</s-button>
-      </Link>
+      <s-link slot="breadcrumb-actions" href="/app/sales">Sales</s-link>
 
       {sale.status === "active" && (
         <s-button
