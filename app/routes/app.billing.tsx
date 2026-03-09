@@ -1,5 +1,5 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs, HeadersFunction } from "react-router";
-import { useLoaderData, useSubmit, useNavigation, useRouteError, isRouteErrorResponse } from "react-router";
+import { useLoaderData, useSubmit, useNavigation, useRouteError, isRouteErrorResponse, useLocation } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate, MONTHLY_PLAN } from "../shopify.server";
 import { formatDate } from "../utils/date";
@@ -32,10 +32,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const intent = formData.get("intent");
 
   if (intent === "subscribe") {
+    const host = formData.get("host") as string ?? "";
     await billing.request({
       plan: MONTHLY_PLAN as any,
       isTest: process.env.NODE_ENV !== "production",
-      returnUrl: `${process.env.SHOPIFY_APP_URL}/auth?shop=${session.shop}`,
+      returnUrl: `${process.env.SHOPIFY_APP_URL}/auth?shop=${session.shop}&host=${host}`,
     });
   }
 
@@ -55,10 +56,13 @@ export default function BillingPage() {
   const { hasActivePayment, subscription } = useLoaderData<typeof loader>();
   const submit = useSubmit();
   const navigation = useNavigation();
+  const location = useLocation();
   const isLoading = navigation.state !== "idle";
 
+  const host = new URLSearchParams(location.search).get("host") ?? "";
+
   const handleSubscribe = () => {
-    submit({ intent: "subscribe" }, { method: "post" });
+    submit({ intent: "subscribe", host }, { method: "post" });
   };
 
   const handleCancel = () => {
