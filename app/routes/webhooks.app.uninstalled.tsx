@@ -50,7 +50,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         try {
           const variantsByProduct = new Map<
             string,
-            { id: string; price: string; compareAtPrice: null }[]
+            { id: string; price: string; compareAtPrice: string }[]
           >();
 
           for (const variant of sale.variants) {
@@ -58,7 +58,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             existing.push({
               id: variant.variantId,
               price: variant.originalPrice,
-              compareAtPrice: null,
+              compareAtPrice: "",
             });
             variantsByProduct.set(variant.productId, existing);
           }
