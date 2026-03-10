@@ -50,7 +50,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         try {
           const variantsByProduct = new Map<
             string,
-            { id: string; price: string }[]
+            { id: string; price: string; compareAtPrice: null }[]
           >();
 
           for (const variant of sale.variants) {
@@ -58,6 +58,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             existing.push({
               id: variant.variantId,
               price: variant.originalPrice,
+              compareAtPrice: null,
             });
             variantsByProduct.set(variant.productId, existing);
           }
@@ -86,20 +87,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                 { extra: { shop, saleId: sale.id } },
               );
             }
-          }
-
-          // Clear compareAtPrice via REST (GraphQL bulk update cannot set it to null)
-          const restBase = `https://${shop}/admin/api/${apiVersion}`;
-          for (const variant of sale.variants) {
-            const variantRestId = variant.variantId.split("/").pop();
-            await fetch(`${restBase}/variants/${variantRestId}.json`, {
-              method: "PUT",
-              headers: {
-                "Content-Type": "application/json",
-                "X-Shopify-Access-Token": accessToken,
-              },
-              body: JSON.stringify({ variant: { id: variantRestId, compare_at_price: null } }),
-            }).catch(() => {});
           }
         } catch (error) {
           Sentry.captureException(error, {
