@@ -682,35 +682,32 @@ export default function NewSale() {
                           );
 
                           return (
-                            <s-stack
-                              key={variant.id}
-                              direction="inline"
-                              gap="base"
-                              style={{ padding: "4px 0", opacity: isOnSale ? 0.5 : 1 }}
-                            >
-                              <s-checkbox
-                                checked={isSelected}
-                                onChange={() =>
-                                  toggleVariant(
-                                    variant.id,
-                                    product.id,
-                                    variant.price,
-                                    isOnSale,
-                                  )
-                                }
-                                disabled={isOnSale}
-                              />
-                              <s-text>
-                                {variant.title} - ${variant.price}
-                              </s-text>
-                              {isOnSale ? (
-                                <s-badge tone="warning">Already on sale</s-badge>
-                              ) : isSelected ? (
-                                <s-text tone="success">
-                                  → ${salePrice.toFixed(2)}
+                            <div key={variant.id} style={{ padding: "4px 0", opacity: isOnSale ? 0.5 : 1 }}>
+                              <s-stack direction="inline" gap="base">
+                                <s-checkbox
+                                  checked={isSelected}
+                                  onChange={() =>
+                                    toggleVariant(
+                                      variant.id,
+                                      product.id,
+                                      variant.price,
+                                      isOnSale,
+                                    )
+                                  }
+                                  disabled={isOnSale}
+                                />
+                                <s-text>
+                                  {variant.title} - ${variant.price}
                                 </s-text>
-                              ) : null}
-                            </s-stack>
+                                {isOnSale ? (
+                                  <s-badge tone="warning">Already on sale</s-badge>
+                                ) : isSelected ? (
+                                  <s-text tone="success">
+                                    → ${salePrice.toFixed(2)}
+                                  </s-text>
+                                ) : null}
+                              </s-stack>
+                            </div>
                           );
                         })}
                       </div>

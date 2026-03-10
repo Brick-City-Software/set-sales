@@ -7,7 +7,7 @@ import type {
 import { useLoaderData, useFetcher, useNavigate, Link, useRouteError, isRouteErrorResponse, useNavigation } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import * as Sentry from "@sentry/react";
-import { authenticate } from "../shopify.server";
+import { authenticate, apiVersion } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import db from "../db.server";
 import { checkRateLimit } from "../utils/rateLimit";
@@ -117,10 +117,10 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         data: { status: "ending" },
       });
 
-      // Group variants by product ID
+      // Group variants by product ID for bulk price restore
       const variantsByProduct = new Map<
         string,
-        { id: string; price: string; compareAtPrice: string }[]
+        { id: string; price: string }[]
       >();
 
       for (const variant of sale.variants) {
@@ -128,12 +128,11 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         existing.push({
           id: variant.variantId,
           price: variant.originalPrice,
-          compareAtPrice: "",
         });
         variantsByProduct.set(variant.productId, existing);
       }
 
-      // Restore original prices for each product
+      // Step 1: Restore original prices via bulk GraphQL
       const errors: string[] = [];
       for (const [productId, variants] of variantsByProduct) {
         const response = await admin.graphql(
@@ -143,7 +142,6 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
               productVariants {
                 id
                 price
-                compareAtPrice
               }
               userErrors {
                 field
@@ -151,16 +149,32 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
               }
             }
           }`,
-          {
-            variables: { productId, variants },
-          },
+          { variables: { productId, variants } },
         );
 
         const result = await response.json();
-        const userErrors =
-          result.data?.productVariantsBulkUpdate?.userErrors || [];
+        const userErrors = result.data?.productVariantsBulkUpdate?.userErrors || [];
         if (userErrors.length > 0) {
           errors.push(...userErrors.map((e: { message: string }) => e.message));
+        }
+      }
+
+      // Step 2: Clear compareAtPrice via REST (GraphQL bulk update cannot set it to null)
+      if (errors.length === 0 && session.accessToken) {
+        const accessToken = session.accessToken;
+        for (const variant of sale.variants) {
+          const variantRestId = variant.variantId.split("/").pop();
+          await fetch(
+            `https://${session.shop}/admin/api/${apiVersion}/variants/${variantRestId}.json`,
+            {
+              method: "PUT",
+              headers: {
+                "Content-Type": "application/json",
+                "X-Shopify-Access-Token": accessToken,
+              },
+              body: JSON.stringify({ variant: { id: variantRestId, compare_at_price: null } }),
+            },
+          ).catch(() => {});
         }
       }
 
