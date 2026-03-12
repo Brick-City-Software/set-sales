@@ -450,6 +450,8 @@ export default function NewSale() {
 
   useEffect(() => {
     if (fetcher.data?.success) {
+      setName("");
+      setSelectedVariants(new Map());
       shopify.toast.show("Sale created successfully!");
       navigate(`/app/sales/${fetcher.data.saleId}`);
     }
