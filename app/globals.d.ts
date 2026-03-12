@@ -35,6 +35,11 @@ declare namespace JSX {
       tone?: "base" | "subdued" | "success" | "critical" | "caution" | "info" | "magic" | "text-inverse";
       children?: React.ReactNode;
     };
+    "ui-save-bar": {
+      id?: string;
+      ref?: React.RefCallback<HTMLElement & { onSave?: () => void; onDiscard?: () => void }> | null;
+      children?: React.ReactNode;
+    };
     "s-table": {
       variant?: "list" | "table" | "auto";
       loading?: boolean;

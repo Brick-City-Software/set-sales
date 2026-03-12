@@ -437,9 +437,28 @@ export default function NewSale() {
 
   const isSubmitting = fetcher.state !== "idle";
   const isLoading = navigation.state === "loading";
+  const isDirty = name.trim().length > 0 || selectedVariants.size > 0;
+
+  const handleDiscard = useCallback(() => {
+    setName("");
+    setDiscountType("percentage");
+    setDiscountValue("20");
+    setSelectedVariants(new Map());
+    navigate("/app/sales");
+  }, [navigate]);
+
+  // Show/hide Contextual Save Bar based on dirty state (BFS 4.1.5)
+  useEffect(() => {
+    if (isDirty) {
+      shopify.saveBar.show("create-sale-save-bar");
+    } else {
+      shopify.saveBar.hide("create-sale-save-bar");
+    }
+  }, [isDirty, shopify]);
 
   useEffect(() => {
     if (fetcher.data?.success) {
+      shopify.saveBar.hide("create-sale-save-bar");
       shopify.toast.show("Sale created successfully!");
       navigate(`/app/sales/${fetcher.data.saleId}`);
     }
@@ -553,15 +572,15 @@ export default function NewSale() {
 
   return (
     <s-page heading="Create Sale">
-      <s-button
-        slot="primary-action"
-        variant="primary"
-        ref={(el: HTMLElement | null) => { if (el) el.onclick = () => handleSubmit(); }}
-        {...(isSubmitting ? { loading: true } : {})}
-        {...(isOverLimit ? { disabled: true } : {})}
-      >
-        Create Sale ({selectedVariants.size} variants)
-      </s-button>
+      <ui-save-bar
+        id="create-sale-save-bar"
+        ref={(el: HTMLElement & { onSave?: () => void; onDiscard?: () => void } | null) => {
+          if (el) {
+            el.onSave = handleSubmit;
+            el.onDiscard = handleDiscard;
+          }
+        }}
+      />
 
       {isApproachingLimit && (
         <s-banner tone={isOverLimit ? "critical" : "warning"}>
