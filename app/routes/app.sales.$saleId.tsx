@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type {
   ActionFunctionArgs,
   HeadersFunction,
@@ -404,13 +404,24 @@ export default function SaleDetail() {
 
   const isEnding = fetcher.state !== "idle";
   const isLoading = navigation.state === "loading";
+  const navTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (navTimerRef.current) clearTimeout(navTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (fetcher.data?.success) {
       const message = fetcher.data.message || "Sale ended - prices restored";
 
-      // If this was an undo action, just show success and stay on page
+      // If this was an undo action, cancel pending navigation and stay on page
       if (fetcher.data.undone) {
+        if (navTimerRef.current) {
+          clearTimeout(navTimerRef.current);
+          navTimerRef.current = null;
+        }
         shopify.toast.show(message);
         return;
       }
@@ -427,8 +438,8 @@ export default function SaleDetail() {
             );
           },
         });
-        // Don't navigate away immediately - allow user to undo
-        setTimeout(() => {
+        // Navigate after the toast expires; cancelled if user clicks Undo
+        navTimerRef.current = setTimeout(() => {
           navigate("/app/sales");
         }, 5000);
       } else {
