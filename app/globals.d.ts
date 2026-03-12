@@ -35,6 +35,32 @@ declare namespace JSX {
       tone?: "base" | "subdued" | "success" | "critical" | "caution" | "info" | "magic" | "text-inverse";
       children?: React.ReactNode;
     };
+    "s-table": {
+      variant?: "list" | "table" | "auto";
+      loading?: boolean;
+      paginate?: boolean;
+      hasPreviousPage?: boolean;
+      hasNextPage?: boolean;
+      children?: React.ReactNode;
+    };
+    "s-table-header-row": {
+      children?: React.ReactNode;
+    };
+    "s-table-header": {
+      format?: "base" | "currency" | "numeric";
+      listSlot?: "primary" | "secondary" | "kicker" | "inline" | "labeled";
+      children?: React.ReactNode;
+    };
+    "s-table-body": {
+      children?: React.ReactNode;
+    };
+    "s-table-row": {
+      clickDelegate?: string;
+      children?: React.ReactNode;
+    };
+    "s-table-cell": {
+      children?: React.ReactNode;
+    };
     "s-text-field": {
       id?: string;
       label?: string;
