@@ -587,7 +587,7 @@ export default function NewSale() {
             label="Discount Type"
             name="discountType"
             values={[discountType]}
-            onChange={(e: Event) => setDiscountType((e.currentTarget as HTMLElement & { values: string[] }).values[0])}
+            onChange={(e: Event) => setDiscountType((e.target as HTMLElement & { values: string[] }).values[0])}
           >
             <s-choice value="percentage" selected={discountType === "percentage"}>Percentage off</s-choice>
             <s-choice value="fixed_amount" selected={discountType === "fixed_amount"}>Fixed amount off</s-choice>
