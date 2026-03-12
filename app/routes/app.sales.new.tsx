@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import type {
   ActionFunctionArgs,
   HeadersFunction,
@@ -439,6 +439,11 @@ export default function NewSale() {
   const isLoading = navigation.state === "loading";
   const isDirty = name.trim().length > 0 || selectedVariants.size > 0;
 
+  // Keep a stable ref to always-current handlers so the ui-save-bar
+  // element (wired once on mount) doesn't capture stale closures.
+  const handleSubmitRef = useRef<() => void>(() => {});
+  const handleDiscardRef = useRef<() => void>(() => {});
+
   const handleDiscard = useCallback(() => {
     setName("");
     setDiscountType("percentage");
@@ -446,6 +451,9 @@ export default function NewSale() {
     setSelectedVariants(new Map());
     navigate("/app/sales");
   }, [navigate]);
+
+  // Sync refs to latest callbacks on every render
+  handleDiscardRef.current = handleDiscard;
 
   // Show/hide Contextual Save Bar based on dirty state (BFS 4.1.5)
   useEffect(() => {
@@ -539,6 +547,9 @@ export default function NewSale() {
     );
   }, [name, selectedVariants, discountType, discountValue, shopify, fetcher]);
 
+  // Sync ref to latest handleSubmit on every render
+  handleSubmitRef.current = handleSubmit;
+
   const handleSearch = () => {
     Sentry.startSpan({ op: "ui.click", name: "Product Search" }, () => {
       trackEvent({
@@ -576,8 +587,8 @@ export default function NewSale() {
         id="create-sale-save-bar"
         ref={(el: HTMLElement & { onSave?: () => void; onDiscard?: () => void } | null) => {
           if (el) {
-            el.onSave = handleSubmit;
-            el.onDiscard = handleDiscard;
+            el.onSave = () => handleSubmitRef.current();
+            el.onDiscard = () => handleDiscardRef.current();
           }
         }}
       />
