@@ -1,11 +1,11 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import type {
   ActionFunctionArgs,
   HeadersFunction,
   LoaderFunctionArgs,
 } from "react-router";
 import { useLoaderData, useFetcher, useNavigate, useNavigation, useRouteError, isRouteErrorResponse, Link } from "react-router";
-import { useAppBridge } from "@shopify/app-bridge-react";
+import { useAppBridge, SaveBar } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import db from "../db.server";
@@ -439,10 +439,6 @@ export default function NewSale() {
   const isLoading = navigation.state === "loading";
   const isDirty = name.trim().length > 0 || selectedVariants.size > 0;
 
-  // Keep a stable ref to always-current handlers so the ui-save-bar
-  // element (wired once on mount) doesn't capture stale closures.
-  const handleSubmitRef = useRef<() => void>(() => {});
-  const handleDiscardRef = useRef<() => void>(() => {});
 
   const handleDiscard = useCallback(() => {
     setName("");
@@ -452,21 +448,8 @@ export default function NewSale() {
     navigate("/app/sales");
   }, [navigate]);
 
-  // Sync refs to latest callbacks on every render
-  handleDiscardRef.current = handleDiscard;
-
-  // Show/hide Contextual Save Bar based on dirty state (BFS 4.1.5)
-  useEffect(() => {
-    if (isDirty) {
-      shopify.saveBar.show("create-sale-save-bar");
-    } else {
-      shopify.saveBar.hide("create-sale-save-bar");
-    }
-  }, [isDirty, shopify]);
-
   useEffect(() => {
     if (fetcher.data?.success) {
-      shopify.saveBar.hide("create-sale-save-bar");
       shopify.toast.show("Sale created successfully!");
       navigate(`/app/sales/${fetcher.data.saleId}`);
     }
@@ -547,9 +530,6 @@ export default function NewSale() {
     );
   }, [name, selectedVariants, discountType, discountValue, shopify, fetcher]);
 
-  // Sync ref to latest handleSubmit on every render
-  handleSubmitRef.current = handleSubmit;
-
   const handleSearch = () => {
     Sentry.startSpan({ op: "ui.click", name: "Product Search" }, () => {
       trackEvent({
@@ -583,15 +563,10 @@ export default function NewSale() {
 
   return (
     <s-page heading="Create Sale">
-      <ui-save-bar
-        id="create-sale-save-bar"
-        ref={(el: HTMLElement & { onSave?: () => void; onDiscard?: () => void } | null) => {
-          if (el) {
-            el.onSave = () => handleSubmitRef.current();
-            el.onDiscard = () => handleDiscardRef.current();
-          }
-        }}
-      />
+      <SaveBar open={isDirty}>
+        <button variant="primary" onClick={handleSubmit} />
+        <button onClick={handleDiscard} />
+      </SaveBar>
 
       {isApproachingLimit && (
         <s-banner tone={isOverLimit ? "critical" : "warning"}>
