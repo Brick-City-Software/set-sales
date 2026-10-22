@@ -7,6 +7,7 @@ import { isbot } from "isbot";
 import * as Sentry from "@sentry/react";
 import { addDocumentResponseHeaders } from "./shopify.server";
 import { initSentryServer } from "./sentry.server";
+import { stripQuery } from "./utils/sentryScrub";
 
 // Initialize Sentry on server startup
 initSentryServer();
@@ -53,7 +54,7 @@ export default async function handleRequest(
               type: "shell_error",
             },
             extra: {
-              url: request.url,
+              url: stripQuery(request.url),
             },
           });
           reject(error);
@@ -66,14 +67,14 @@ export default async function handleRequest(
               type: "render_error",
             },
             extra: {
-              url: request.url,
+              url: stripQuery(request.url),
             },
           });
           // Only log full errors in development (Issue #34)
           if (process.env.NODE_ENV === "production") {
             console.error("Render error occurred", {
               timestamp: new Date().toISOString(),
-              url: request.url,
+              url: stripQuery(request.url),
               // Do NOT include: error.stack, error.message, user data
             });
           } else {

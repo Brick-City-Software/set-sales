@@ -1,21 +1,19 @@
 import * as Sentry from "@sentry/react";
+import { scrubErrorEvent, scrubTransactionEvent } from "./utils/sentryScrub";
 
 // Initialize Sentry for client-side error tracking
 export function initSentry() {
   Sentry.init({
     dsn: "https://293283fc34213d258bd7be6d4f7e89c2@o4510863856762880.ingest.us.sentry.io/4510863862530048",
-    // Setting this option to true will send default PII data to Sentry.
-    // For example, automatic IP address collection on events
-    sendDefaultPii: true,
-    // Enable logs to be sent to Sentry
-    integrations: [
-      Sentry.browserTracingIntegration(),
-      Sentry.replayIntegration(),
-    ],
+    // Don't send IPs, cookies, or user data — the privacy policy promises no
+    // merchant personal information reaches Sentry
+    sendDefaultPii: false,
+    beforeSend: scrubErrorEvent,
+    beforeSendTransaction: scrubTransactionEvent,
+    // Session Replay is intentionally not enabled: it would record merchant
+    // admin screens (product names, prices, staff info)
+    integrations: [Sentry.browserTracingIntegration()],
     // Performance Monitoring
-    tracesSampleRate: 1.0, // Capture 100% of transactions for performance monitoring
-    // Session Replay
-    replaysSessionSampleRate: 0.1, // Sample 10% of sessions
-    replaysOnErrorSampleRate: 1.0, // Sample 100% of sessions with errors
+    tracesSampleRate: 0.1,
   });
 }
