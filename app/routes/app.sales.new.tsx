@@ -108,11 +108,20 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 // Validation schema for sale creation (Issue #31, #32)
+// originalPrice is intentionally not accepted from the client — it is fetched
+// from Shopify in the action so a tampered or stale form can't set the price
+// that gets restored when the sale ends.
 const SelectedVariantSchema = z.object({
-  variantId: z.string().min(1, "Variant ID required"),
-  productId: z.string().min(1, "Product ID required"),
-  originalPrice: z.string().regex(/^\d+(\.\d{1,2})?$/, "Invalid price format"),
+  variantId: z
+    .string()
+    .regex(/^gid:\/\/shopify\/ProductVariant\/\d+$/, "Invalid variant ID"),
+  productId: z
+    .string()
+    .regex(/^gid:\/\/shopify\/Product\/\d+$/, "Invalid product ID"),
 });
+
+// nodes(ids:) accepts at most 250 IDs per call
+const NODES_BATCH_SIZE = 250;
 
 const SaleCreationSchema = z
   .object({
@@ -234,27 +243,61 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     };
   }
 
-  // Validate each variant has required fields
-  for (const variant of selectedVariants) {
-    if (!variant.variantId || !variant.productId || !variant.originalPrice) {
-      return { error: "Invalid variant data structure" };
+  // Fetch current prices from Shopify — never trust client-supplied prices
+  const shopifyVariants = new Map<string, { price: string; productId: string }>();
+  try {
+    for (let i = 0; i < variantIds.length; i += NODES_BATCH_SIZE) {
+      const response = await admin.graphql(
+        `#graphql
+        query GetVariantPrices($ids: [ID!]!) {
+          nodes(ids: $ids) {
+            ... on ProductVariant {
+              id
+              price
+              product {
+                id
+              }
+            }
+          }
+        }`,
+        { variables: { ids: variantIds.slice(i, i + NODES_BATCH_SIZE) } },
+      );
+      const result = await response.json();
+      for (const node of result.data?.nodes ?? []) {
+        if (node?.id && node.price != null && node.product?.id) {
+          shopifyVariants.set(node.id, {
+            price: node.price,
+            productId: node.product.id,
+          });
+        }
+      }
     }
+  } catch (error) {
+    trackError(error, { operation: "fetch_variant_prices" });
+    return { error: "Failed to load current variant prices from Shopify" };
   }
 
-  // Calculate sale prices
-  const variantsWithSalePrice = selectedVariants.map((v) => {
-    const originalPrice = parseFloat(v.originalPrice);
+  // Calculate sale prices from the server-fetched prices
+  const variantsWithSalePrice = [];
+  for (const v of selectedVariants) {
+    const current = shopifyVariants.get(v.variantId);
+    if (!current || current.productId !== v.productId) {
+      return { error: "One or more selected variants could not be found" };
+    }
+
     const salePrice = calculateSalePrice(
-      originalPrice,
+      parseFloat(current.price),
       discountType,
       discountValue,
     );
 
-    return {
-      ...v,
+    variantsWithSalePrice.push({
+      variantId: v.variantId,
+      productId: v.productId,
+      originalPrice: current.price,
       salePrice: salePrice.toFixed(2),
-    };
-  });
+    });
+  }
 
   // Group by product for bulk update
   const variantsByProduct = new Map<
