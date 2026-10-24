@@ -20,13 +20,19 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
-COPY package.json package-lock.json* ./
+# Run as the unprivileged "node" user (built into the official image).
+# It must own /app because docker-start runs `prisma generate`, which writes
+# into node_modules.
+RUN chown node:node /app
+USER node
+
+COPY --chown=node:node package.json package-lock.json* ./
 RUN npm ci --omit=dev && npm cache clean --force
 
 # Copy built output and prisma schema from builder
-COPY --from=builder /app/build ./build
-COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --chown=node:node --from=builder /app/build ./build
+COPY --chown=node:node --from=builder /app/prisma ./prisma
+COPY --chown=node:node --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 
 EXPOSE 3000
 
