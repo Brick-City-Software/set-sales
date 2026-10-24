@@ -1,4 +1,4 @@
-import type { ErrorEvent, TransactionEvent } from "@sentry/react";
+import type { Event } from "@sentry/react";
 
 /**
  * Embedded-app URLs carry session tokens and signatures in the query string
@@ -10,7 +10,9 @@ export function stripQuery(url: string): string {
   return i === -1 ? url : url.slice(0, i);
 }
 
-function scrubEvent<T extends ErrorEvent | TransactionEvent>(event: T): T {
+// Generic so it fits both beforeSend (ErrorEvent) and beforeSendTransaction
+// (TransactionEvent); @sentry/react only re-exports the base Event type.
+export function scrubEvent<T extends Event>(event: T): T {
   if (event.request) {
     if (event.request.url) event.request.url = stripQuery(event.request.url);
     delete event.request.query_string;
@@ -29,7 +31,3 @@ function scrubEvent<T extends ErrorEvent | TransactionEvent>(event: T): T {
   delete event.user;
   return event;
 }
-
-export const scrubErrorEvent = (event: ErrorEvent) => scrubEvent(event);
-export const scrubTransactionEvent = (event: TransactionEvent) =>
-  scrubEvent(event);

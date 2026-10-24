@@ -1,5 +1,5 @@
 import * as Sentry from "@sentry/react";
-import { scrubErrorEvent, scrubTransactionEvent } from "./utils/sentryScrub";
+import { scrubEvent } from "./utils/sentryScrub";
 
 let initialized = false;
 
@@ -12,8 +12,8 @@ export function initSentryServer() {
     // Don't send IPs, cookies, or user data — the privacy policy promises no
     // merchant personal information reaches Sentry
     sendDefaultPii: false,
-    beforeSend: scrubErrorEvent,
-    beforeSendTransaction: scrubTransactionEvent,
+    beforeSend: scrubEvent,
+    beforeSendTransaction: scrubEvent,
     // Performance Monitoring
     tracesSampleRate: process.env.NODE_ENV === "production" ? 0.1 : 1.0,
     environment: process.env.NODE_ENV || "development",
