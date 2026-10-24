@@ -57,3 +57,13 @@ model SaleVariant {
   @@index([variantId])
   @@index([productId])
 }
+
+// Fixed-window rate limit counters, shared across app instances.
+// key is "<shop>:<operation>".
+model RateLimit {
+  key     String   @id
+  count   Int
+  resetAt DateTime
+
+  @@index([resetAt])
+}

@@ -1,6 +1,7 @@
 import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
+import { deleteRateLimitsForShop } from "../utils/rateLimit";
 
 // GDPR compliance webhook: shop/redact
 // Triggered 48 hours after a merchant uninstalls the app.
@@ -14,6 +15,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   // Delete all sales for this shop (SaleVariants are cascade deleted)
   await db.sale.deleteMany({ where: { shop } });
+
+  // Delete rate limit counters for this shop
+  await deleteRateLimitsForShop(shop);
 
   // Delete all sessions for this shop
   await db.session.deleteMany({ where: { shop } });
