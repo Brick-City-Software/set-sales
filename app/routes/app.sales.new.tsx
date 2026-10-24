@@ -20,6 +20,7 @@ import { PAGINATION } from "../constants/pagination";
 import { calculateSalePrice } from "../utils/pricing";
 import * as Sentry from "@sentry/react";
 import { trackEvent, trackError, trackPerformance } from "../utils/analytics";
+import { inProgressSaleFilter } from "../services/sales.server";
 
 // Validation schemas
 const LoaderParamsSchema = z.object({
@@ -157,7 +158,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
 
   // Rate limiting: max 10 sale creations per minute per shop (Issue #35)
-  const rateLimit = checkRateLimit(`${session.shop}:create_sale`, {
+  const rateLimit = await checkRateLimit(`${session.shop}:create_sale`, {
     maxRequests: 10,
     windowMs: 60000, // 1 minute
   });
@@ -213,8 +214,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     where: {
       variantId: { in: variantIds },
       sale: {
-        status: "active",
         shop: session.shop,
+        ...inProgressSaleFilter(),
       },
     },
     include: {

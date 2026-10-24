@@ -14,6 +14,8 @@ import { checkRateLimit } from "../utils/rateLimit";
 import { formatDiscountType } from "../utils/pricing";
 import { formatDate } from "../utils/date";
 import { trackEvent, trackError } from "../utils/analytics";
+import { endSale, undoEndSale } from "../services/sales.server";
+import { z } from "zod";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -58,194 +60,68 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return { sales, searchQuery, statusFilter };
 };
 
+const END_RATE_LIMIT = { maxRequests: 20, windowMs: 60000 }; // 20/min per shop (Issue #35)
+const UNDO_RATE_LIMIT = { maxRequests: 20, windowMs: 60000 };
+
+const MAX_BULK_SALES = 20;
+
+const SaleIdsSchema = z
+  .array(z.string().min(1).max(64))
+  .min(1, "No sales selected")
+  .max(MAX_BULK_SALES, `Cannot update more than ${MAX_BULK_SALES} sales at once.`);
+
+/** Parse the JSON-encoded saleIds field. Returns deduped IDs or an error message. */
+function parseSaleIds(raw: unknown): string[] | string {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(String(raw ?? ""));
+  } catch {
+    return "Invalid sale selection";
+  }
+  const validation = SaleIdsSchema.safeParse(parsed);
+  if (!validation.success) return validation.error.issues[0].message;
+  return [...new Set(validation.data)];
+}
+
+function rateLimitMessage(resetAt: number) {
+  const resetIn = Math.ceil((resetAt - Date.now()) / 1000);
+  return `Too many requests. Please try again in ${resetIn} seconds.`;
+}
+
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
 
   const formData = await request.formData();
   const action = formData.get("action");
-  const saleIds = formData.get("saleIds") as string;
 
   if (action === "endBulk") {
-    const saleIdArray = JSON.parse(saleIds);
+    const saleIdArray = parseSaleIds(formData.get("saleIds"));
+    if (typeof saleIdArray === "string") return { error: saleIdArray };
 
-    // Rate limiting: max 20 sale end operations per minute per shop (Issue #35)
-    const rateLimitConfig = {
-      maxRequests: 20,
-      windowMs: 60000, // 1 minute
-    };
-    const rateLimit = checkRateLimit(`${session.shop}:end_sale`, rateLimitConfig);
+    const rateLimit = await checkRateLimit(`${session.shop}:end_sale`, END_RATE_LIMIT);
+    if (!rateLimit.allowed) return { error: rateLimitMessage(rateLimit.resetAt) };
 
-    if (!rateLimit.allowed) {
-      const resetIn = Math.ceil((rateLimit.resetAt - Date.now()) / 1000);
-      return {
-        error: `Too many requests. Please try again in ${resetIn} seconds.`,
-      };
-    }
-
-    // Additional rate check for bulk operations
-    if (saleIdArray.length > rateLimitConfig.maxRequests) {
-      return {
-        error: `Cannot end more than ${rateLimitConfig.maxRequests} sales at once.`,
-      };
-    }
-
-    const sales = await db.sale.findMany({
-      where: { id: { in: saleIdArray }, shop: session.shop },
-      include: { variants: true },
-    });
-
-    if (sales.length === 0) {
-      return { error: "No sales found" };
-    }
-
-    // Filter out already ended sales
-    const activeSalesToEnd = sales.filter((s) => s.status === "active");
-    if (activeSalesToEnd.length === 0) {
-      return { error: "All selected sales are already ended" };
-    }
-
-    const results: { saleId: string; success: boolean; error?: string }[] = [];
-
-    for (const sale of activeSalesToEnd) {
-      try {
-        // Update status to "ending" first to prevent race conditions
-        await db.sale.update({
-          where: { id: sale.id },
-          data: { status: "ending" },
-        });
-
-        // Group variants by product ID
-        const variantsByProduct = new Map<
-          string,
-          { id: string; price: string; compareAtPrice: null }[]
-        >();
-
-        for (const variant of sale.variants) {
-          const existing = variantsByProduct.get(variant.productId) || [];
-          existing.push({
-            id: variant.variantId,
-            price: variant.originalPrice,
-            compareAtPrice: null,
-          });
-          variantsByProduct.set(variant.productId, existing);
-        }
-
-        // Restore original prices for each product
-        const errors: string[] = [];
-        for (const [productId, variants] of variantsByProduct) {
-          const response = await admin.graphql(
-            `#graphql
-            mutation RestoreOriginalPrices($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
-              productVariantsBulkUpdate(productId: $productId, variants: $variants) {
-                productVariants {
-                  id
-                  price
-                  compareAtPrice
-                }
-                userErrors {
-                  field
-                  message
-                }
-              }
-            }`,
-            {
-              variables: { productId, variants },
-            },
-          );
-
-          const result = await response.json();
-          const userErrors =
-            result.data?.productVariantsBulkUpdate?.userErrors || [];
-          if (userErrors.length > 0) {
-            errors.push(...userErrors.map((e: { message: string }) => e.message));
-          }
-        }
-
-        if (errors.length > 0) {
-          // Rollback: revert to active status
-          await db.sale.update({
-            where: { id: sale.id },
-            data: { status: "active" },
-          });
-          results.push({
-            saleId: sale.id,
-            success: false,
-            error: errors.join(", "),
-          });
-        } else {
-          // Remove metafields from products (Issue #54)
-          const productIds = [...new Set(sale.variants.map((v) => v.productId))];
-          const metafieldInputs = productIds.map((productId) => ({
-            ownerId: productId,
-            namespace: "set_sales",
-            key: "active_sale_id",
-            value: "",
-            type: "single_line_text_field",
-          }));
-
-          try {
-            await admin.graphql(
-              `#graphql
-              mutation UpdateProductMetafields($metafields: [MetafieldsSetInput!]!) {
-                metafieldsSet(metafields: $metafields) {
-                  metafields {
-                    id
-                    namespace
-                    key
-                    value
-                  }
-                  userErrors {
-                    field
-                    message
-                  }
-                }
-              }`,
-              {
-                variables: { metafields: metafieldInputs },
-              },
-            );
-          } catch (error) {
-            // Log metafield errors but don't fail the sale end
-            console.error("Failed to remove metafields:", error);
-          }
-
-          // Update status to ended
-          await db.sale.update({
-            where: { id: sale.id },
-            data: { status: "ended" },
-          });
-          results.push({ saleId: sale.id, success: true });
-        }
-      } catch (error) {
-        // On any error, try to revert status
-        await db.sale.update({
-          where: { id: sale.id },
-          data: { status: "active" },
-        });
-        results.push({
-          saleId: sale.id,
-          success: false,
-          error: error instanceof Error ? error.message : "Failed to end sale",
-        });
-      }
+    const results: { saleId: string; success: boolean; variantCount: number }[] = [];
+    for (const saleId of saleIdArray) {
+      const result = await endSale(admin, session.shop, saleId);
+      results.push({
+        saleId,
+        success: result.ok,
+        variantCount: result.ok ? result.variantCount : 0,
+      });
     }
 
     const successCount = results.filter((r) => r.success).length;
-    const failureCount = results.filter((r) => !r.success).length;
-    const successfulSaleIds = results
-      .filter((r) => r.success)
-      .map((r) => r.saleId);
+    const failureCount = results.length - successCount;
+    const successfulSaleIds = results.filter((r) => r.success).map((r) => r.saleId);
 
     if (successCount > 0 && failureCount === 0) {
       // Track bulk sale end success
-      const totalVariantsEnded = activeSalesToEnd
-        .filter((s) => results.find((r) => r.saleId === s.id && r.success))
-        .reduce((sum, s) => sum + s.variants.length, 0);
       trackEvent({
         name: "sale_ended",
         properties: {
           sale_id: `bulk:${successCount}`,
-          variant_count: totalVariantsEnded,
+          variant_count: results.reduce((sum, r) => sum + r.variantCount, 0),
         },
       });
 
@@ -255,7 +131,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         saleIds: successfulSaleIds,
         isBulk: true,
       };
-    } else if (successCount > 0 && failureCount > 0) {
+    } else if (successCount > 0) {
       return {
         success: true,
         message: `Ended ${successCount} sale${successCount > 1 ? "s" : ""}, but ${failureCount} failed`,
@@ -268,297 +144,55 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   // Legacy single sale end support
-  const saleId = formData.get("saleId") as string;
+  const saleId = String(formData.get("saleId") ?? "");
 
   if (action === "end") {
-    // Rate limiting: max 20 sale end operations per minute per shop (Issue #35)
-    const rateLimit = checkRateLimit(`${session.shop}:end_sale`, {
-      maxRequests: 20,
-      windowMs: 60000, // 1 minute
-    });
+    const rateLimit = await checkRateLimit(`${session.shop}:end_sale`, END_RATE_LIMIT);
+    if (!rateLimit.allowed) return { error: rateLimitMessage(rateLimit.resetAt) };
 
-    if (!rateLimit.allowed) {
-      const resetIn = Math.ceil((rateLimit.resetAt - Date.now()) / 1000);
-      return {
-        error: `Too many requests. Please try again in ${resetIn} seconds.`,
-      };
-    }
-
-    const sale = await db.sale.findFirst({
-      where: { id: saleId, shop: session.shop },
-      include: { variants: true },
-    });
-
-    if (!sale) {
-      return { error: "Sale not found" };
-    }
-
-    // Prevent duplicate operations (Issue #36)
-    if (sale.status === "ended") {
-      return { error: "Sale is already ended" };
-    }
-
-    try {
-      // Update status to "ending" first to prevent race conditions (Issue #36)
-      await db.sale.update({
-        where: { id: saleId },
-        data: { status: "ending" },
-      });
-
-      // Group variants by product ID
-      const variantsByProduct = new Map<
-        string,
-        { id: string; price: string; compareAtPrice: null }[]
-      >();
-
-      for (const variant of sale.variants) {
-        const existing = variantsByProduct.get(variant.productId) || [];
-        existing.push({
-          id: variant.variantId,
-          price: variant.originalPrice,
-          compareAtPrice: null,
-        });
-        variantsByProduct.set(variant.productId, existing);
-      }
-
-      // Restore original prices for each product
-      const errors: string[] = [];
-      for (const [productId, variants] of variantsByProduct) {
-        const response = await admin.graphql(
-          `#graphql
-          mutation RestoreOriginalPrices($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
-            productVariantsBulkUpdate(productId: $productId, variants: $variants) {
-              productVariants {
-                id
-                price
-                compareAtPrice
-              }
-              userErrors {
-                field
-                message
-              }
-            }
-          }`,
-          {
-            variables: { productId, variants },
-          },
-        );
-
-        const result = await response.json();
-        const userErrors =
-          result.data?.productVariantsBulkUpdate?.userErrors || [];
-        if (userErrors.length > 0) {
-          errors.push(...userErrors.map((e: { message: string }) => e.message));
-        }
-      }
-
-      if (errors.length > 0) {
-        // Rollback: mark as failed but keep original status
-        await db.sale.update({
-          where: { id: saleId },
-          data: { status: sale.status },
-        });
-        return { error: `Failed to restore prices: ${errors.join(", ")}` };
-      }
-
-      // Remove metafields from products (Issue #54)
-      const productIds = [...new Set(sale.variants.map((v) => v.productId))];
-      const metafieldInputs = productIds.map((productId) => ({
-        ownerId: productId,
-        namespace: "set_sales",
-        key: "active_sale_id",
-        value: "",
-        type: "single_line_text_field",
-      }));
-
-      try {
-        await admin.graphql(
-          `#graphql
-          mutation UpdateProductMetafields($metafields: [MetafieldsSetInput!]!) {
-            metafieldsSet(metafields: $metafields) {
-              metafields {
-                id
-                namespace
-                key
-                value
-              }
-              userErrors {
-                field
-                message
-              }
-            }
-          }`,
-          {
-            variables: { metafields: metafieldInputs },
-          },
-        );
-      } catch (error) {
-        // Log metafield errors but don't fail the sale end
-        console.error("Failed to remove metafields:", error);
-      }
-
-      // Finally update status to ended
-      await db.sale.update({
-        where: { id: saleId },
-        data: { status: "ended" },
-      });
-
-      return { success: true, message: "Sale ended successfully", saleId };
-    } catch (error) {
-      // On any error, try to revert status
-      await db.sale.update({
-        where: { id: saleId },
-        data: { status: sale.status },
-      });
-      return {
-        error:
-          error instanceof Error ? error.message : "Failed to end sale",
-      };
-    }
+    const result = await endSale(admin, session.shop, saleId);
+    if (!result.ok) return { error: result.error };
+    return { success: true, message: "Sale ended successfully", saleId };
   }
 
   // Undo end sale action (Issue #53)
   if (action === "undoEnd") {
-    const saleId = formData.get("saleId") as string;
+    const rateLimit = await checkRateLimit(`${session.shop}:undo_sale`, UNDO_RATE_LIMIT);
+    if (!rateLimit.allowed) return { error: rateLimitMessage(rateLimit.resetAt) };
 
-    // Rate limiting for undo operations
-    const rateLimit = checkRateLimit(`${session.shop}:undo_sale`, {
-      maxRequests: 20,
-      windowMs: 60000, // 1 minute
-    });
+    const result = await undoEndSale(admin, session.shop, saleId);
+    if (!result.ok) return { error: result.error };
+    return { success: true, message: "Sale reactivated successfully" };
+  }
 
-    if (!rateLimit.allowed) {
-      const resetIn = Math.ceil((rateLimit.resetAt - Date.now()) / 1000);
-      return {
-        error: `Too many requests. Please try again in ${resetIn} seconds.`,
-      };
+  // Undo a bulk end in a single request. Submitting one undoEnd per sale
+  // through the same fetcher aborted all but the last request.
+  if (action === "undoBulk") {
+    const saleIdArray = parseSaleIds(formData.get("saleIds"));
+    if (typeof saleIdArray === "string") return { error: saleIdArray };
+
+    const rateLimit = await checkRateLimit(`${session.shop}:undo_sale`, UNDO_RATE_LIMIT);
+    if (!rateLimit.allowed) return { error: rateLimitMessage(rateLimit.resetAt) };
+
+    let successCount = 0;
+    let firstError = "";
+    for (const id of saleIdArray) {
+      const result = await undoEndSale(admin, session.shop, id);
+      if (result.ok) successCount++;
+      else firstError ||= result.error;
     }
 
-    const sale = await db.sale.findFirst({
-      where: { id: saleId, shop: session.shop },
-      include: { variants: true },
-    });
-
-    if (!sale) {
-      return { error: "Sale not found" };
+    const failureCount = saleIdArray.length - successCount;
+    if (successCount === 0) {
+      return { error: `Failed to undo: ${firstError}` };
     }
-
-    // Can only undo recently ended sales
-    if (sale.status !== "ended") {
-      return { error: "Sale is not ended" };
-    }
-
-    try {
-      // Update status to "active" first
-      await db.sale.update({
-        where: { id: saleId },
-        data: { status: "active" },
-      });
-
-      // Group variants by product ID
-      const variantsByProduct = new Map<
-        string,
-        { id: string; price: string; compareAtPrice: string }[]
-      >();
-
-      for (const variant of sale.variants) {
-        const existing = variantsByProduct.get(variant.productId) || [];
-        existing.push({
-          id: variant.variantId,
-          price: variant.salePrice,
-          compareAtPrice: variant.originalPrice,
-        });
-        variantsByProduct.set(variant.productId, existing);
-      }
-
-      // Reapply sale prices for each product
-      const errors: string[] = [];
-      for (const [productId, variants] of variantsByProduct) {
-        const response = await admin.graphql(
-          `#graphql
-          mutation ReapplySalePrices($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
-            productVariantsBulkUpdate(productId: $productId, variants: $variants) {
-              productVariants {
-                id
-                price
-                compareAtPrice
-              }
-              userErrors {
-                field
-                message
-              }
-            }
-          }`,
-          {
-            variables: { productId, variants },
-          },
-        );
-
-        const result = await response.json();
-        const userErrors =
-          result.data?.productVariantsBulkUpdate?.userErrors || [];
-        if (userErrors.length > 0) {
-          errors.push(...userErrors.map((e: { message: string }) => e.message));
-        }
-      }
-
-      if (errors.length > 0) {
-        // Rollback: mark as ended again
-        await db.sale.update({
-          where: { id: saleId },
-          data: { status: "ended" },
-        });
-        return { error: `Failed to reapply sale prices: ${errors.join(", ")}` };
-      }
-
-      // Restore metafields on products (Issue #54)
-      const productIds = [...new Set(sale.variants.map((v) => v.productId))];
-      const metafieldInputs = productIds.map((productId) => ({
-        ownerId: productId,
-        namespace: "set_sales",
-        key: "active_sale_id",
-        value: saleId,
-        type: "single_line_text_field",
-      }));
-
-      try {
-        await admin.graphql(
-          `#graphql
-          mutation UpdateProductMetafields($metafields: [MetafieldsSetInput!]!) {
-            metafieldsSet(metafields: $metafields) {
-              metafields {
-                id
-                namespace
-                key
-                value
-              }
-              userErrors {
-                field
-                message
-              }
-            }
-          }`,
-          {
-            variables: { metafields: metafieldInputs },
-          },
-        );
-      } catch (error) {
-        // Log metafield errors but don't fail the undo
-        console.error("Failed to restore metafields:", error);
-      }
-
-      return { success: true, message: "Sale reactivated successfully" };
-    } catch (error) {
-      // On any error, try to revert status
-      await db.sale.update({
-        where: { id: saleId },
-        data: { status: "ended" },
-      });
-      return {
-        error:
-          error instanceof Error ? error.message : "Failed to undo end sale",
-      };
-    }
+    return {
+      success: true,
+      message:
+        failureCount === 0
+          ? `Reactivated ${successCount} sale${successCount > 1 ? "s" : ""}`
+          : `Reactivated ${successCount} sale${successCount > 1 ? "s" : ""}, but ${failureCount} could not be undone: ${firstError}`,
+    };
   }
 
   return { error: "Unknown action" };
@@ -615,13 +249,12 @@ export default function SalesIndex() {
           duration: 5000,
           action: "Undo",
           onAction: () => {
-            // Undo all successfully ended sales
-            saleIds.forEach((saleId: string) => {
-              fetcher.submit(
-                { action: "undoEnd", saleId },
-                { method: "POST" }
-              );
-            });
+            // Undo all successfully ended sales in one request — a fetcher
+            // aborts its in-flight submission when submitted again
+            fetcher.submit(
+              { action: "undoBulk", saleIds: JSON.stringify(saleIds) },
+              { method: "POST" }
+            );
           },
         });
       } else {
